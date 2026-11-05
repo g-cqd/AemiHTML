@@ -7,6 +7,7 @@ extension HTMLTokenizer {
         let slot = nameSlot(dataStart, dataEnd, folds: false)
         append(tag: HTMLTokens.Tag.comment, aux: slot.aux, low: slot.low)
         state = .data
+        batchReady = true
     }
 
     mutating func commentStep() {
@@ -33,7 +34,7 @@ extension HTMLTokenizer {
             pos += 7
             beginDoctype()
         } else if byte(pos) == 0x5B, pos + 7 <= count, input[pos ..< pos + 7].elementsEqual("[CDATA[".utf8) {
-            if options.allowsCDATA {
+            if allowsCDATA {
                 pos += 7
                 state = .cdata
             } else {

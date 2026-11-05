@@ -1,0 +1,10 @@
+# Cases of html5lib's tree-construction tests (the copy pinned by Scripts/fetch-html5lib.sh, 2026-06) that the parser does not give, and why. A case that starts passing must come off this list.
+# The format is `file#number reason`. Every entry is a difference with the standard's text as it stands, not a bug waiting: if one is a bug, it does not belong here.
+html5test-com.dat#12 processing instructions: since 2026 `<?` opens a processing instruction (13.2.5.72 to 13.2.5.76) and the parser inserts a ProcessingInstruction node; these tests, from before, expect a bogus comment
+tests1.dat#40 processing instructions: `<?` at the end of the input is dropped (eof-in-processing-instruction); the old test expects the comment `?`
+tests1.dat#44 processing instructions: target COMMENT, no data; the old test expects the comment `?COMMENT?`
+tests1.dat#47 processing instructions: target COM--MENT (hyphens are allowed in a target); the old test expects a comment
+webkit02.dat#45 the `selectedcontent` element mirrors the selected option's content into itself: DOM behaviour of that element, not an algorithm of 13.2.6
+webkit02.dat#46 as webkit02.dat#45
+webkit02.dat#47 as webkit02.dat#45
+webkit02.dat#48 as webkit02.dat#45

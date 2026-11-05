@@ -73,5 +73,6 @@ extension HTMLTokenizer {
         append(tag: HTMLTokens.Tag.value, aux: Swift.min(end - dataStart, HTMLTokens.maxLength) << 1, low: dataStart)
         pos = stop + 1
         state = .data
+        batchReady = true
     }
 }

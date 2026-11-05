@@ -46,6 +46,10 @@ public struct HTMLTokenizer {
     let input: [UInt8]
     let count: Int
     let options: Options
+    /// Whether `<![CDATA[` opens a CDATA section: the tree builder sets it while the adjusted current node is in a foreign namespace.
+    var allowsCDATA: Bool
+    /// Set by every token that ends a batch for `advance()`: a tag, comment, doctype or processing instruction.
+    var batchReady = false
     var pos = 0
     var state: State
     var done = false
@@ -107,6 +111,7 @@ public struct HTMLTokenizer {
         count = input.count
         self.options = options
         self.out = out
+        allowsCDATA = options.allowsCDATA
         lastStartTag = options.lastStartTag
         switch options.initialState {
             case .data: state = .data

@@ -1,0 +1,22 @@
+name: CI
+
+# swift-ci plans and runs the checks from .ci/action.json (https://github.com/g-cqd/swift-ci); .ci/README.md lists
+# what runs when. `.ci/swift-ci local` runs the same checks on a developer's machine.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Checks
+    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@9c17e1df69c73bc602160caee5dd10257d6de2c4 # swift-ci 9c17e1d
+    permissions:
+      contents: write # reusable publish permission; this package publishes no archives

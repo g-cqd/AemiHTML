@@ -13,3 +13,5 @@ Benchmarks/Compare/**/.build
 # Cargo's output and npm's installs, wherever a benchmark has them (build output lives in ~/Library/Caches/g-cqd-build, behind a link)
 target
 node_modules
+# ordo-one/benchmark keeps its baselines here (`swift package benchmark baseline update`)
+.benchmarkBaselines

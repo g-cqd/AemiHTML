@@ -50,6 +50,15 @@ Not done: the tree builder's own parse errors (the tokenizer's are reported), st
 ## Speed
 
 `Benchmarks/Compare/run.py` runs 15 real pages (the HTML Standard, Wikipedia, MDN, GitHub, news sites; 19.9 MB, downloaded by `Scripts/fetch-pages.sh`, never committed) through AemiHTML and other parsers, one thread, best of nine rounds of CPU time,
+
+The in-process benchmarks run on [ordo-one's `Benchmark`](https://github.com/ordo-one/benchmark), as AemiJSON's do: percentiles of wall-clock and CPU time, throughput, malloc count and peak memory for tokenizing, parsing, streaming in 16 KiB chunks and extracting, on the smallest, the middle and the largest page and on a synthetic document. The framework is a dependency of the suite alone, and the suite exists only under `AEMIHTML_DEV`, so a package that depends on AemiHTML, and a plain `swift build` or `swift test`, never fetch it:
+
+```sh
+AEMIHTML_DEV=1 swift package --allow-writing-to-package-directory benchmark            # all of them
+AEMIHTML_DEV=1 swift package benchmark run --filter "parse/.*"                         # a subset
+```
+
+`brew install jemalloc` gives the malloc counts; with `BENCHMARK_DISABLE_JEMALLOC=1` the times still run. The comparisons with html5ever, parse5 and Lexbor stay in `Benchmarks/Compare`: they run other languages' programs, which a Swift framework cannot. For a change of a percent or two, the instruction count (`/usr/bin/time -l`) is the instrument; see `docs/design/remaining-work.md`.
 Apple M3, at a load average of 5 (the machine is shared; the last run of each table is the one shown):
 
 | Tokenizing only | MB/s | Tokens |

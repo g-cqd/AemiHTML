@@ -117,6 +117,67 @@ func dumpTokens() {
             )
     }
 }
+/// One line per node, depth as leading spaces, in the format `rust-dom` writes: the trees of two parsers can be diffed.
+func dumpTree(_ document: HTMLDocument) -> String {
+    func escape(_ bytes: ArraySlice<UInt8>) -> String {
+        var out = ""
+        for scalar in String(decoding: bytes, as: UTF8.self).unicodeScalars {
+            switch scalar {
+                case "\\": out += "\\\\"
+                case "\n": out += "\\n"
+                case "\r": out += "\\r"
+                case "\t": out += "\\t"
+                default: out.unicodeScalars.append(scalar)
+            }
+        }
+        return out
+    }
+    var lines: [String] = []
+    var stack: [(HTMLDocument.Node, Int)] = []
+    var child = document.lastChild(document.root)
+    while !child.isNone {
+        stack.append((child, 0))
+        child = document.previousSibling(child)
+    }
+    while let (node, depth) = stack.popLast() {
+        let pad = String(repeating: " ", count: depth)
+        switch document.kind(node) {
+            case .element:
+                let space = ["", "svg", "math"][Int(document.namespace(node).rawValue)]
+                var attributes = document.attributes(of: node)
+                    .map { attribute -> String in
+                        let prefix =
+                            attribute.namespace == 0 ? "" : (attribute.prefix.isEmpty ? "" : attribute.prefix + " ")
+                        return prefix + String(decoding: attribute.name, as: UTF8.self) + "=" + escape(attribute.value)
+                    }
+                attributes.sort()
+                lines.append(
+                    "\(pad)E \(space) \(String(decoding: document.name(node), as: UTF8.self)) \(attributes.joined(separator: " \u{1} "))"
+                )
+            case .text: lines.append("\(pad)T \(escape(document.data(node)))")
+            case .comment: lines.append("\(pad)C \(escape(document.data(node)))")
+            case .doctype: lines.append("\(pad)D \(String(decoding: document.name(node), as: UTF8.self))")
+            case .processingInstruction: lines.append("\(pad)P \(String(decoding: document.name(node), as: UTF8.self))")
+            case .templateContents: lines.append("\(pad)TC")
+            case .document: break
+        }
+        var kid = document.lastChild(node)
+        while !kid.isNone {
+            stack.append((kid, depth + 1))
+            kid = document.previousSibling(kid)
+        }
+    }
+    return lines.joined(separator: "\n") + "\n"
+}
+if arguments.contains("--tree") {
+    let names = ((try? FileManager.default.contentsOfDirectory(atPath: arguments[1])) ?? []).sorted()
+    let directory = ProcessInfo.processInfo.environment["AEMIHTML_DUMP_DIR"] ?? "/tmp"
+    for (page, name) in zip(pages, names) {
+        try? dumpTree(HTMLParser.parse(page))
+            .write(toFile: "\(directory)/\(name).aemi.tree.txt", atomically: true, encoding: .utf8)
+    }
+    exit(0)
+}
 if arguments.contains("--dump") {
     dumpTokens()
     exit(0)

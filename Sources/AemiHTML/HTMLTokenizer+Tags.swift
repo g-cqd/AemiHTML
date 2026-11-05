@@ -21,6 +21,7 @@ extension HTMLTokenizer {
 
     /// The tag is cut short by the end of the input: it is dropped.
     mutating func abandonTag() {
+        reachedEnd()
         out.tape.removeLast(out.tape.count - tagSlot)
         error(.eofInTag)
         done = true

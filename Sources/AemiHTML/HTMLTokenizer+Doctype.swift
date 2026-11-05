@@ -31,6 +31,7 @@ extension HTMLTokenizer {
     }
 
     mutating func doctypeEOF() {
+        reachedEnd()
         error(.eofInDoctype)
         doctypeFlags.insert(.forcesQuirks)
         emitDoctype()

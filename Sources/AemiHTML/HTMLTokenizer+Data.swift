@@ -90,12 +90,13 @@ extension HTMLTokenizer {
 
     /// If `at` is `</` + the last start tag's name + whitespace, `/` or `>`, the index after the name.
     func appropriateEndTag(at index: Int) -> Int? {
-        let length = lastStartTag.count
+        let last = out.bytes(range: lastStartTagRange)
+        let length = last.count
         guard length > 0, byte(index + 1) == 0x2F, index + 2 + length <= count else { return nil }
         for offset in 0 ..< length {
             var value = input[index + 2 + offset]
             if value >= 0x41, value <= 0x5A { value += 0x20 }
-            if value != lastStartTag[offset] { return nil }
+            if value != last[last.startIndex + offset] { return nil }
         }
         let next = byte(index + 2 + length)
         guard Self.isWhitespace(next) || next == 0x2F || next == 0x3E else { return nil }

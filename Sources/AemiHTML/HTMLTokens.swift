@@ -60,10 +60,33 @@ public struct HTMLTokens: Sendable {
         return aux & 1 == 0 ? source[low ..< low + length] : scratch[low ..< low + length]
     }
 
+    /// Appends a copy of the bytes of `range` to the scratch. A range that is itself in the scratch is copied by index: a slice of the array kept while the array is appended to would make every append copy the whole array.
+    mutating func appendCopy(of range: UInt64) {
+        let aux = Int(TapeSlot.aux(range))
+        let low = TapeSlot.low(range)
+        let length = aux >> 1
+        if aux & 1 == 0 {
+            scratch.append(contentsOf: source[low ..< low + length])
+        } else {
+            for index in low ..< low + length { scratch.append(scratch[index]) }
+        }
+    }
+
     /// A range over bytes the builder adds to the scratch.
-    mutating func intern(_ bytes: some Sequence<UInt8>) -> UInt64 {
+    mutating func intern(_ bytes: [UInt8]) -> UInt64 {
         let start = scratch.count
         scratch.append(contentsOf: bytes)
+        return TapeSlot.make(
+            tag: 0,
+            aux: UInt64(Swift.min(scratch.count - start, HTMLTokens.maxLength) << 1 | 1),
+            low: start
+        )
+    }
+
+    /// As `intern(_:)`, for the UTF-8 of a string, byte by byte (a generic append of a string's bytes allocates).
+    mutating func intern(utf8 string: String) -> UInt64 {
+        let start = scratch.count
+        for byte in string.utf8 { scratch.append(byte) }
         return TapeSlot.make(
             tag: 0,
             aux: UInt64(Swift.min(scratch.count - start, HTMLTokens.maxLength) << 1 | 1),

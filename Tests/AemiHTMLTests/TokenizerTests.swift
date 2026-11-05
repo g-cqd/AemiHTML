@@ -21,12 +21,12 @@ struct TokenizerTests {
         #expect(tag.attributes.map { text($0.value) } == ["a", "b", "c d", ""])
     }
 
-    @Test func `text is a range of the source until the standard changes it`() {
-        let result = tokens("a &amp; b &#x41; &notit; c")
-        let joined = result.tokens.map { text($0.text) }.joined()
-        #expect(joined == "a & b A ¬it; c")
-        // The source runs are not copied: only the decoded references are in the scratch.
-        #expect(result.scratch.count < 12)
+    @Test func `text is a range of the source until a reference changes it, and a run is one slot`() {
+        let plain = tokens("a plain run of text, and <b>more</b>")
+        #expect(plain.scratch.isEmpty)
+        let decoded = tokens("a &amp; b &#x41; &notit; c")
+        let slots = decoded.tokens.filter { $0.kind == .text }
+        #expect(slots.count == 1 && text(slots[0].text) == "a & b A ¬it; c")
     }
 
     @Test func `the first of a repeated attribute wins and the repeat is an error`() {

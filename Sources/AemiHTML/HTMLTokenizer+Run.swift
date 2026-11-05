@@ -75,7 +75,8 @@ extension HTMLTokenizer {
         out.tape.append(TapeSlot.make(tag: tag, aux: UInt64(aux), low: low))
     }
 
-    /// Text from the source, `from ..< to`: joined to the slot before when that is the text just before it.
+    /// Text from the source, `from ..< to`. A run of text is one slot: it joins the slot before when that is text, either by extending a range of the source that touches it, or, in a run that has had a reference decoded (it is
+    /// in the scratch, at its end), by copying the source bytes after it.
     mutating func emitText(_ from: Int, _ to: Int, tag: UInt8 = HTMLTokens.Tag.text) {
         var from = from
         while from < to {
@@ -83,14 +84,27 @@ extension HTMLTokenizer {
             if tag == HTMLTokens.Tag.text, let last = out.tape.last, TapeSlot.tag(last) == tag {
                 let aux = Int(TapeSlot.aux(last))
                 let low = TapeSlot.low(last)
-                if aux & 1 == 0, low + (aux >> 1) == from, (aux >> 1) + length <= HTMLTokens.maxLength {
-                    out.tape[out.tape.count - 1] = TapeSlot.make(
-                        tag: tag,
-                        aux: UInt64(((aux >> 1) + length) << 1),
-                        low: low
-                    )
-                    from += length
-                    continue
+                let have = aux >> 1
+                if have + length <= HTMLTokens.maxLength {
+                    if aux & 1 == 0, low + have == from {
+                        out.tape[out.tape.count - 1] = TapeSlot.make(
+                            tag: tag,
+                            aux: UInt64((have + length) << 1),
+                            low: low
+                        )
+                        from += length
+                        continue
+                    }
+                    if aux & 1 == 1, low + have == out.scratch.count {
+                        out.scratch.append(contentsOf: input[from ..< from + length])
+                        out.tape[out.tape.count - 1] = TapeSlot.make(
+                            tag: tag,
+                            aux: UInt64((have + length) << 1 | 1),
+                            low: low
+                        )
+                        from += length
+                        continue
+                    }
                 }
             }
             append(tag: tag, aux: length << 1, low: from)
@@ -98,25 +112,38 @@ extension HTMLTokenizer {
         }
     }
 
-    /// A scalar the tokenizer made (a decoded reference, U+FFFD), as text.
+    /// A scalar the tokenizer made (a decoded reference, U+FFFD), as text: the text before it in the run moves to the scratch, if it is not there, so that the run stays one contiguous range.
     mutating func emitScalars(_ first: UInt32, _ second: UInt32? = nil) {
-        let start = out.scratch.count
-        Self.encode(first, into: &out.scratch)
-        if let second { Self.encode(second, into: &out.scratch) }
-        let length = out.scratch.count - start
+        var start = out.scratch.count
         if let last = out.tape.last, TapeSlot.tag(last) == HTMLTokens.Tag.text {
             let aux = Int(TapeSlot.aux(last))
             let low = TapeSlot.low(last)
-            if aux & 1 == 1, low + (aux >> 1) == start, (aux >> 1) + length <= HTMLTokens.maxLength {
+            let have = aux >> 1
+            if have + 8 <= HTMLTokens.maxLength {
+                if aux & 1 == 0 || low + have != start {
+                    start = out.scratch.count
+                    out.appendCopy(of: TapeSlot.make(tag: 0, aux: UInt64(aux), low: low))
+                    out.tape[out.tape.count - 1] = TapeSlot.make(
+                        tag: HTMLTokens.Tag.text,
+                        aux: UInt64(have << 1 | 1),
+                        low: start
+                    )
+                }
+                let base = TapeSlot.low(out.tape[out.tape.count - 1])
+                Self.encode(first, into: &out.scratch)
+                if let second { Self.encode(second, into: &out.scratch) }
+                let length = out.scratch.count - base
                 out.tape[out.tape.count - 1] = TapeSlot.make(
                     tag: HTMLTokens.Tag.text,
-                    aux: UInt64(((aux >> 1) + length) << 1 | 1),
-                    low: low
+                    aux: UInt64(length << 1 | 1),
+                    low: base
                 )
                 return
             }
         }
-        append(tag: HTMLTokens.Tag.text, aux: length << 1 | 1, low: start)
+        Self.encode(first, into: &out.scratch)
+        if let second { Self.encode(second, into: &out.scratch) }
+        append(tag: HTMLTokens.Tag.text, aux: (out.scratch.count - start) << 1 | 1, low: start)
     }
 
     static func encode(_ value: UInt32, into bytes: inout [UInt8]) {

@@ -44,8 +44,13 @@ extension HTMLTreeBuilder {
 
     /// Whether the token goes to the rules for foreign content (the list of 13.2.6).
     func usesForeignRules(_ token: BuilderToken) -> Bool {
-        guard let node = stack.isEmpty ? nil : adjustedCurrentNode, !node.isNone else { return false }
-        if token.kind == .endOfFile { return false }
+        // The common case first: the adjusted current node is an HTML element.
+        let node = (stack.count == 1 && !contextElement.isNone) ? contextElement : (stack.last ?? .none)
+        if node.isNone || document.namespaceRaw(node) == HTMLDocument.Namespace.html.rawValue
+            || token.kind == .endOfFile
+        {
+            return false
+        }
         switch space(of: node) {
             case .html: return false
             case .mathml:
@@ -101,7 +106,7 @@ extension HTMLTreeBuilder {
     /// An element for a start tag the standard invents (`html`, `head`, `body`, `p`, `tbody`...), with no attributes.
     @discardableResult
     mutating func insertFakeElement(_ name: HTMLName, _ spelling: String) -> Node {
-        let range = tokenizer.out.intern(spelling.utf8)
+        let range = tokenizer.out.intern(utf8: spelling)
         let node = document.makeNode(.element, name: name, space: .html, nameRange: range)
         if name == .template { document.append(document.makeNode(.templateContents), to: node) }
         insertNode(node, at: appropriatePlace())

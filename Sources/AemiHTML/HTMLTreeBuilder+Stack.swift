@@ -4,18 +4,34 @@ extension HTMLTreeBuilder {
     // MARK: Names
 
     func isElement(_ node: Node, _ name: HTMLName, in space: HTMLDocument.Namespace = .html) -> Bool {
-        document.names[Int(node.raw)] == name.rawValue && document.namespaces[Int(node.raw)] == space.rawValue
-            && document.kinds[Int(node.raw)] == HTMLDocument.Kind.element.rawValue
+        document.atom(node) == name.rawValue && document.namespaceRaw(node) == space.rawValue
+            && document.kindRaw(node) == HTMLDocument.Kind.element.rawValue
     }
 
-    func isHTML(_ node: Node, _ names: HTMLName...) -> Bool {
-        guard document.namespaces[Int(node.raw)] == HTMLDocument.Namespace.html.rawValue,
-            document.kinds[Int(node.raw)] == HTMLDocument.Kind.element.rawValue
+    /// Whether `node` is an HTML element with one of up to five names. Fixed arity, so nothing is allocated to ask.
+    @inline(__always)
+    func isHTML(
+        _ node: Node,
+        _ a: HTMLName,
+        _ b: HTMLName = .none,
+        _ c: HTMLName = .none,
+        _ d: HTMLName = .none,
+        _ e: HTMLName = .none
+    ) -> Bool {
+        guard document.namespaceRaw(node) == HTMLDocument.Namespace.html.rawValue,
+            document.kindRaw(node) == HTMLDocument.Kind.element.rawValue
         else { return false }
-        return names.contains { $0.rawValue == document.names[Int(node.raw)] }
+        let atom = document.atom(node)
+        return atom == a.rawValue || atom == b.rawValue || atom == c.rawValue || atom == d.rawValue
+            || atom == e.rawValue
     }
 
-    func name(of node: Node) -> HTMLName { HTMLName(rawValue: document.names[Int(node.raw)]) ?? .unknown }
+    @inline(__always)
+    func isHTML(_ node: Node, in set: NameSet) -> Bool {
+        isHTMLElement(node) && set.contains(document.atom(node))
+    }
+
+    func name(of node: Node) -> HTMLName { HTMLName(rawValue: document.atom(node)) ?? .unknown }
     func space(of node: Node) -> HTMLDocument.Namespace { document.namespace(node) }
     func isHTMLElement(_ node: Node) -> Bool { space(of: node) == .html && document.kind(node) == .element }
 
@@ -80,10 +96,16 @@ extension HTMLTreeBuilder {
     @discardableResult
     mutating func pop() -> Node { stack.removeLast() }
 
-    /// Pops until an HTML element with one of these names has been popped.
-    mutating func popUntilHTML(_ names: [HTMLName]) {
+    /// Pops until an HTML element with this name (or one of the names in the set) has been popped.
+    mutating func popUntilHTML(_ name: HTMLName) {
         while let node = stack.popLast() {
-            if isHTML(node, names) { return }
+            if isHTML(node, name) { return }
+        }
+    }
+
+    mutating func popUntilHTML(in set: NameSet) {
+        while let node = stack.popLast() {
+            if isHTML(node, in: set) { return }
         }
     }
 
@@ -91,11 +113,6 @@ extension HTMLTreeBuilder {
         while let node = stack.popLast() {
             if isHTMLElement(node), Self.isHeading(name(of: node)) { return }
         }
-    }
-
-    func isHTML(_ node: Node, _ names: [HTMLName]) -> Bool {
-        guard isHTMLElement(node) else { return false }
-        return names.contains { $0.rawValue == document.names[Int(node.raw)] }
     }
 
     func stackIndex(of node: Node) -> Int? { stack.lastIndex(of: node) }
@@ -191,7 +208,7 @@ extension HTMLTreeBuilder {
     /// "Close a p element": generate implied end tags except for `p`, then pop through the `p`.
     mutating func closeP() {
         generateImpliedEndTags(except: .p)
-        popUntilHTML([.p])
+        popUntilHTML(.p)
     }
 
     /// Whether the stack has a `template` element.
@@ -201,20 +218,57 @@ extension HTMLTreeBuilder {
 extension HTMLTreeBuilder {
     /// The bytes of an element's local name, a doctype's name or a processing instruction's target.
     func nameBytes(of node: Node) -> ArraySlice<UInt8> {
-        tokenizer.out.bytes(range: document.nameRanges[Int(node.raw)])
+        tokenizer.out.bytes(range: document.nameRange(node))
     }
 
     /// Whether the element has an attribute of this name (no namespace).
     func hasAttribute(_ node: Node, _ name: ArraySlice<UInt8>) -> Bool {
-        var index = document.firstAttributes[Int(node.raw)]
+        var index = document.records[Int(node.raw)].firstAttribute
         while index >= 0 {
-            if document.attributeNamespaces[Int(index)] == 0,
-                tokenizer.out.bytes(range: document.attributeNames[Int(index)]).elementsEqual(name)
-            {
-                return true
-            }
-            index = document.attributeNext[Int(index)]
+            let record = document.attributeRecords[Int(index)]
+            if record.namespace == 0, tokenizer.out.bytes(range: record.name).elementsEqual(name) { return true }
+            index = record.next
         }
         return false
+    }
+}
+
+/// A set of element names as two words (the names are integers below 128): asking costs two shifts and no allocation.
+struct NameSet {
+    private var low: UInt64 = 0
+    private var high: UInt64 = 0
+
+    init(_ names: HTMLName...) {
+        for name in names {
+            if name.rawValue < 64 { low |= 1 << UInt64(name.rawValue) } else { high |= 1 << UInt64(name.rawValue - 64) }
+        }
+    }
+
+    @inline(__always) func contains(_ raw: UInt16) -> Bool {
+        raw < 64 ? (low >> UInt64(raw)) & 1 == 1 : (raw < 128 ? (high >> UInt64(raw - 64)) & 1 == 1 : false)
+    }
+
+    static let tableContext = NameSet(.table, .template, .html)
+    static let tableBodyContext = NameSet(.tbody, .tfoot, .thead, .template, .html)
+    static let tableRowContext = NameSet(.tr, .template, .html)
+    static let tableTextContext = NameSet(.table, .tbody, .template, .tfoot, .thead, .tr)
+    static let cells = NameSet(.td, .th)
+    static let listItems = NameSet(.li)
+    static let definitionItems = NameSet(.dd, .dt)
+}
+
+extension HTMLTreeBuilder {
+    /// Whether `bytes` spell `word` (lower case) in any case.
+    static func equalsIgnoringCase(_ bytes: ArraySlice<UInt8>, _ word: String) -> Bool {
+        guard bytes.count == word.utf8.count else { return false }
+        for (byte, expected) in zip(bytes, word.utf8) where lower(byte) != expected { return false }
+        return true
+    }
+
+    /// Whether `bytes`, in lower case, are `lowered`.
+    static func equalsLowered(_ bytes: ArraySlice<UInt8>, _ lowered: ArraySlice<UInt8>) -> Bool {
+        guard bytes.count == lowered.count else { return false }
+        for (byte, expected) in zip(bytes, lowered) where lower(byte) != expected { return false }
+        return true
     }
 }

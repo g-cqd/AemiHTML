@@ -129,276 +129,374 @@ enum HTMLName: UInt16, Sendable {
     case var_
     case wbr
     case xmp
+    /// No name: the default of the arguments that a call does not use.
+    case none = 65535
 
-    /// The name for `bytes` (lower case, as the tokenizer makes names; `foreignObject` and the like are looked up by their lower-case form and adjusted by the caller).
+    /// The name for `bytes` (lower case, as the tokenizer makes names; `foreignObject` and the like are looked up by their lower-case form and adjusted by the caller). A switch over the length and the bytes packed in an integer: no hashing.
     static func lookup(_ bytes: ArraySlice<UInt8>) -> HTMLName {
-        guard bytes.count <= 15 else { return .unknown }
+        guard bytes.count <= 8 else { return bytes.count <= 15 ? lookupLong(bytes) : .unknown }
         var key: UInt64 = 0
         for byte in bytes { key = key << 8 | UInt64(byte) }
-        return byKey[Pack(length: bytes.count, key: key)] ?? .unknown
-    }
-
-    private struct Pack: Hashable {
-        var length: Int
-        var key: UInt64
-    }
-
-    private static let byKey: [Pack: HTMLName] = {
-        var table: [Pack: HTMLName] = [:]
-        for (name, value) in all {
-            var key: UInt64 = 0
-            for byte in name.utf8 { key = key << 8 | UInt64(byte) }
-            table[Pack(length: name.utf8.count, key: key)] = value
+        switch bytes.count {
+            case 1:
+                switch key {
+                    case 0x61: return .a
+                    case 0x62: return .b
+                    case 0x69: return .i
+                    case 0x70: return .p
+                    case 0x73: return .s
+                    case 0x75: return .u
+                    default: return .unknown
+                }
+            case 2:
+                switch key {
+                    case 0x6272: return .br
+                    case 0x6464: return .dd
+                    case 0x646c: return .dl
+                    case 0x6474: return .dt
+                    case 0x656d: return .em
+                    case 0x6831: return .h1
+                    case 0x6832: return .h2
+                    case 0x6833: return .h3
+                    case 0x6834: return .h4
+                    case 0x6835: return .h5
+                    case 0x6836: return .h6
+                    case 0x6872: return .hr
+                    case 0x6c69: return .li
+                    case 0x6d69: return .mi
+                    case 0x6d6e: return .mn
+                    case 0x6d6f: return .mo
+                    case 0x6d73: return .ms
+                    case 0x6f6c: return .ol
+                    case 0x7262: return .rb
+                    case 0x7270: return .rp
+                    case 0x7274: return .rt
+                    case 0x7464: return .td
+                    case 0x7468: return .th
+                    case 0x7472: return .tr
+                    case 0x7474: return .tt
+                    case 0x756c: return .ul
+                    default: return .unknown
+                }
+            case 3:
+                switch key {
+                    case 0x626967: return .big
+                    case 0x636f6c: return .col
+                    case 0x646972: return .dir
+                    case 0x646976: return .div
+                    case 0x696d67: return .img
+                    case 0x6e6176: return .nav
+                    case 0x707265: return .pre
+                    case 0x727463: return .rtc
+                    case 0x737562: return .sub
+                    case 0x737570: return .sup
+                    case 0x737667: return .svg
+                    case 0x766172: return .var_
+                    case 0x776272: return .wbr
+                    case 0x786d70: return .xmp
+                    default: return .unknown
+                }
+            case 4:
+                switch key {
+                    case 0x6172_6561: return .area
+                    case 0x6261_7365: return .base
+                    case 0x626f_6479: return .body
+                    case 0x636f_6465: return .code
+                    case 0x6465_7363: return .desc
+                    case 0x666f_6e74: return .font
+                    case 0x666f_726d: return .form
+                    case 0x6865_6164: return .head
+                    case 0x6874_6d6c: return .html
+                    case 0x6c69_6e6b: return .link
+                    case 0x6d61_696e: return .main
+                    case 0x6d61_7468: return .math
+                    case 0x6d65_6e75: return .menu
+                    case 0x6d65_7461: return .meta
+                    case 0x6e6f_6272: return .nobr
+                    case 0x7275_6279: return .ruby
+                    case 0x7370_616e: return .span
+                    default: return .unknown
+                }
+            case 5:
+                switch key {
+                    case 0x61_7369_6465: return .aside
+                    case 0x65_6d62_6564: return .embed
+                    case 0x66_7261_6d65: return .frame
+                    case 0x69_6d61_6765: return .image
+                    case 0x69_6e70_7574: return .input
+                    case 0x6c_6162_656c: return .label
+                    case 0x6d_7465_7874: return .mtext
+                    case 0x70_6172_616d: return .param
+                    case 0x73_6d61_6c6c: return .small
+                    case 0x73_7479_6c65: return .style
+                    case 0x74_6162_6c65: return .table
+                    case 0x74_626f_6479: return .tbody
+                    case 0x74_666f_6f74: return .tfoot
+                    case 0x74_6865_6164: return .thead
+                    case 0x74_6974_6c65: return .title
+                    case 0x74_7261_636b: return .track
+                    default: return .unknown
+                }
+            case 6:
+                switch key {
+                    case 0x6170_706c_6574: return .applet
+                    case 0x6275_7474_6f6e: return .button
+                    case 0x6365_6e74_6572: return .center
+                    case 0x6469_616c_6f67: return .dialog
+                    case 0x6669_6775_7265: return .figure
+                    case 0x666f_6f74_6572: return .footer
+                    case 0x6865_6164_6572: return .header
+                    case 0x6867_726f_7570: return .hgroup
+                    case 0x6966_7261_6d65: return .iframe
+                    case 0x6b65_7967_656e: return .keygen
+                    case 0x6d67_6c79_7068: return .mglyph
+                    case 0x6f62_6a65_6374: return .object
+                    case 0x6f70_7469_6f6e: return .option
+                    case 0x6f75_7470_7574: return .output
+                    case 0x7363_7269_7074: return .script
+                    case 0x7365_6172_6368: return .search
+                    case 0x7365_6c65_6374: return .select
+                    case 0x736f_7572_6365: return .source
+                    case 0x7374_7269_6b65: return .strike
+                    case 0x7374_726f_6e67: return .strong
+                    default: return .unknown
+                }
+            case 7:
+                switch key {
+                    case 0x61_6464_7265_7373: return .address
+                    case 0x61_7274_6963_6c65: return .article
+                    case 0x62_6773_6f75_6e64: return .bgsound
+                    case 0x63_6170_7469_6f6e: return .caption
+                    case 0x64_6574_6169_6c73: return .details
+                    case 0x6c_6973_7469_6e67: return .listing
+                    case 0x6d_6172_7175_6565: return .marquee
+                    case 0x6e_6f65_6d62_6564: return .noembed
+                    case 0x73_6563_7469_6f6e: return .section
+                    case 0x73_756d_6d61_7279: return .summary
+                    default: return .unknown
+                }
+            case 8:
+                switch key {
+                    case 0x6261_7365_666f_6e74: return .basefont
+                    case 0x636f_6c67_726f_7570: return .colgroup
+                    case 0x6461_7461_6c69_7374: return .datalist
+                    case 0x6669_656c_6473_6574: return .fieldset
+                    case 0x6672_616d_6573_6574: return .frameset
+                    case 0x6e6f_6672_616d_6573: return .noframes
+                    case 0x6e6f_7363_7269_7074: return .noscript
+                    case 0x6f70_7467_726f_7570: return .optgroup
+                    case 0x7465_6d70_6c61_7465: return .template
+                    case 0x7465_7874_6172_6561: return .textarea
+                    default: return .unknown
+                }
+            default: return .unknown
         }
-        return table
-    }()
+    }
 
-    /// Every named element with its lower-case spelling.
-    static let all: [(String, HTMLName)] = [
-        ("a", .a),
-        ("address", .address),
-        ("annotation-xml", .annotationXml),
-        ("applet", .applet),
-        ("area", .area),
-        ("article", .article),
-        ("aside", .aside),
-        ("b", .b),
-        ("base", .base),
-        ("basefont", .basefont),
-        ("bgsound", .bgsound),
-        ("big", .big),
-        ("blockquote", .blockquote),
-        ("body", .body),
-        ("br", .br),
-        ("button", .button),
-        ("caption", .caption),
-        ("center", .center),
-        ("code", .code),
-        ("col", .col),
-        ("colgroup", .colgroup),
-        ("datalist", .datalist),
-        ("dd", .dd),
-        ("desc", .desc),
-        ("details", .details),
-        ("dialog", .dialog),
-        ("dir", .dir),
-        ("div", .div),
-        ("dl", .dl),
-        ("dt", .dt),
-        ("em", .em),
-        ("embed", .embed),
-        ("fieldset", .fieldset),
-        ("figcaption", .figcaption),
-        ("figure", .figure),
-        ("font", .font),
-        ("footer", .footer),
-        ("foreignobject", .foreignObject),
-        ("form", .form),
-        ("frame", .frame),
-        ("frameset", .frameset),
-        ("h1", .h1),
-        ("h2", .h2),
-        ("h3", .h3),
-        ("h4", .h4),
-        ("h5", .h5),
-        ("h6", .h6),
-        ("head", .head),
-        ("header", .header),
-        ("hgroup", .hgroup),
-        ("hr", .hr),
-        ("html", .html),
-        ("i", .i),
-        ("iframe", .iframe),
-        ("image", .image),
-        ("img", .img),
-        ("input", .input),
-        ("keygen", .keygen),
-        ("label", .label),
-        ("li", .li),
-        ("link", .link),
-        ("listing", .listing),
-        ("main", .main),
-        ("malignmark", .malignmark),
-        ("marquee", .marquee),
-        ("math", .math),
-        ("menu", .menu),
-        ("meta", .meta),
-        ("mglyph", .mglyph),
-        ("mi", .mi),
-        ("mn", .mn),
-        ("mo", .mo),
-        ("ms", .ms),
-        ("mtext", .mtext),
-        ("nav", .nav),
-        ("nobr", .nobr),
-        ("noembed", .noembed),
-        ("noframes", .noframes),
-        ("noscript", .noscript),
-        ("object", .object),
-        ("ol", .ol),
-        ("optgroup", .optgroup),
-        ("option", .option),
-        ("output", .output),
-        ("p", .p),
-        ("param", .param),
-        ("plaintext", .plaintext),
-        ("pre", .pre),
-        ("rb", .rb),
-        ("rp", .rp),
-        ("rt", .rt),
-        ("rtc", .rtc),
-        ("ruby", .ruby),
-        ("s", .s),
-        ("script", .script),
-        ("search", .search),
-        ("section", .section),
-        ("select", .select),
-        ("selectedcontent", .selectedcontent),
-        ("small", .small),
-        ("source", .source),
-        ("span", .span),
-        ("strike", .strike),
-        ("strong", .strong),
-        ("style", .style),
-        ("sub", .sub),
-        ("summary", .summary),
-        ("sup", .sup),
-        ("svg", .svg),
-        ("table", .table),
-        ("tbody", .tbody),
-        ("td", .td),
-        ("template", .template),
-        ("textarea", .textarea),
-        ("tfoot", .tfoot),
-        ("th", .th),
-        ("thead", .thead),
-        ("title", .title),
-        ("tr", .tr),
-        ("track", .track),
-        ("tt", .tt),
-        ("u", .u),
-        ("ul", .ul),
-        ("var", .var_),
-        ("wbr", .wbr),
-        ("xmp", .xmp)
+    private static func lookupLong(_ bytes: ArraySlice<UInt8>) -> HTMLName {
+        guard let found = longNames[String(decoding: bytes, as: UTF8.self)] else { return .unknown }
+        return found
+    }
+
+    private static let longNames: [String: HTMLName] = [
+        "annotation-xml": .annotationXml,
+        "blockquote": .blockquote,
+        "figcaption": .figcaption,
+        "foreignobject": .foreignObject,
+        "malignmark": .malignmark,
+        "plaintext": .plaintext,
+        "selectedcontent": .selectedcontent
     ]
 }
 
-/// The SVG tag names whose case the tokenizer lowered (13.2.6.5): lower case, then the name to give the element.
+/// The SVG tag and attribute names whose case the tokenizer lowered (13.2.6.5), and the attributes that take a namespace: functions over the bytes, with no strings made to ask.
 enum SVGAdjustments {
-    static let tags: [String: String] = [
-        "altglyph": "altGlyph",
-        "altglyphdef": "altGlyphDef",
-        "altglyphitem": "altGlyphItem",
-        "animatecolor": "animateColor",
-        "animatemotion": "animateMotion",
-        "animatetransform": "animateTransform",
-        "clippath": "clipPath",
-        "feblend": "feBlend",
-        "fecolormatrix": "feColorMatrix",
-        "fecomponenttransfer": "feComponentTransfer",
-        "fecomposite": "feComposite",
-        "feconvolvematrix": "feConvolveMatrix",
-        "fediffuselighting": "feDiffuseLighting",
-        "fedisplacementmap": "feDisplacementMap",
-        "fedistantlight": "feDistantLight",
-        "fedropshadow": "feDropShadow",
-        "feflood": "feFlood",
-        "fefunca": "feFuncA",
-        "fefuncb": "feFuncB",
-        "fefuncg": "feFuncG",
-        "fefuncr": "feFuncR",
-        "fegaussianblur": "feGaussianBlur",
-        "feimage": "feImage",
-        "femerge": "feMerge",
-        "femergenode": "feMergeNode",
-        "femorphology": "feMorphology",
-        "feoffset": "feOffset",
-        "fepointlight": "fePointLight",
-        "fespecularlighting": "feSpecularLighting",
-        "fespotlight": "feSpotLight",
-        "fetile": "feTile",
-        "feturbulence": "feTurbulence",
-        "foreignobject": "foreignObject",
-        "glyphref": "glyphRef",
-        "lineargradient": "linearGradient",
-        "radialgradient": "radialGradient",
-        "textpath": "textPath"
-    ]
+    /// The adjusted SVG tag name for a lower-case one that has one.
+    static func tag(_ bytes: ArraySlice<UInt8>) -> String? {
+        switch bytes.count {
+            case 6:
+                if bytes.elementsEqual("fetile".utf8) { return "feTile" }
+                return nil
+            case 7:
+                if bytes.elementsEqual("feblend".utf8) { return "feBlend" }
+                if bytes.elementsEqual("feflood".utf8) { return "feFlood" }
+                if bytes.elementsEqual("fefunca".utf8) { return "feFuncA" }
+                if bytes.elementsEqual("fefuncb".utf8) { return "feFuncB" }
+                if bytes.elementsEqual("fefuncg".utf8) { return "feFuncG" }
+                if bytes.elementsEqual("fefuncr".utf8) { return "feFuncR" }
+                if bytes.elementsEqual("feimage".utf8) { return "feImage" }
+                if bytes.elementsEqual("femerge".utf8) { return "feMerge" }
+                return nil
+            case 8:
+                if bytes.elementsEqual("altglyph".utf8) { return "altGlyph" }
+                if bytes.elementsEqual("clippath".utf8) { return "clipPath" }
+                if bytes.elementsEqual("feoffset".utf8) { return "feOffset" }
+                if bytes.elementsEqual("glyphref".utf8) { return "glyphRef" }
+                if bytes.elementsEqual("textpath".utf8) { return "textPath" }
+                return nil
+            case 11:
+                if bytes.elementsEqual("altglyphdef".utf8) { return "altGlyphDef" }
+                if bytes.elementsEqual("fecomposite".utf8) { return "feComposite" }
+                if bytes.elementsEqual("femergenode".utf8) { return "feMergeNode" }
+                if bytes.elementsEqual("fespotlight".utf8) { return "feSpotLight" }
+                return nil
+            case 12:
+                if bytes.elementsEqual("altglyphitem".utf8) { return "altGlyphItem" }
+                if bytes.elementsEqual("animatecolor".utf8) { return "animateColor" }
+                if bytes.elementsEqual("fedropshadow".utf8) { return "feDropShadow" }
+                if bytes.elementsEqual("femorphology".utf8) { return "feMorphology" }
+                if bytes.elementsEqual("fepointlight".utf8) { return "fePointLight" }
+                if bytes.elementsEqual("feturbulence".utf8) { return "feTurbulence" }
+                return nil
+            case 13:
+                if bytes.elementsEqual("animatemotion".utf8) { return "animateMotion" }
+                if bytes.elementsEqual("fecolormatrix".utf8) { return "feColorMatrix" }
+                if bytes.elementsEqual("foreignobject".utf8) { return "foreignObject" }
+                return nil
+            case 14:
+                if bytes.elementsEqual("fedistantlight".utf8) { return "feDistantLight" }
+                if bytes.elementsEqual("fegaussianblur".utf8) { return "feGaussianBlur" }
+                if bytes.elementsEqual("lineargradient".utf8) { return "linearGradient" }
+                if bytes.elementsEqual("radialgradient".utf8) { return "radialGradient" }
+                return nil
+            case 16:
+                if bytes.elementsEqual("animatetransform".utf8) { return "animateTransform" }
+                if bytes.elementsEqual("feconvolvematrix".utf8) { return "feConvolveMatrix" }
+                return nil
+            case 17:
+                if bytes.elementsEqual("fediffuselighting".utf8) { return "feDiffuseLighting" }
+                if bytes.elementsEqual("fedisplacementmap".utf8) { return "feDisplacementMap" }
+                return nil
+            case 18:
+                if bytes.elementsEqual("fespecularlighting".utf8) { return "feSpecularLighting" }
+                return nil
+            case 19:
+                if bytes.elementsEqual("fecomponenttransfer".utf8) { return "feComponentTransfer" }
+                return nil
+            default: return nil
+        }
+    }
 
-    static let attributes: [String: String] = [
-        "attributename": "attributeName",
-        "attributetype": "attributeType",
-        "basefrequency": "baseFrequency",
-        "baseprofile": "baseProfile",
-        "calcmode": "calcMode",
-        "clippathunits": "clipPathUnits",
-        "diffuseconstant": "diffuseConstant",
-        "edgemode": "edgeMode",
-        "filterunits": "filterUnits",
-        "glyphref": "glyphRef",
-        "gradienttransform": "gradientTransform",
-        "gradientunits": "gradientUnits",
-        "kernelmatrix": "kernelMatrix",
-        "kernelunitlength": "kernelUnitLength",
-        "keypoints": "keyPoints",
-        "keysplines": "keySplines",
-        "keytimes": "keyTimes",
-        "lengthadjust": "lengthAdjust",
-        "limitingconeangle": "limitingConeAngle",
-        "markerheight": "markerHeight",
-        "markerunits": "markerUnits",
-        "markerwidth": "markerWidth",
-        "maskcontentunits": "maskContentUnits",
-        "maskunits": "maskUnits",
-        "numoctaves": "numOctaves",
-        "pathlength": "pathLength",
-        "patterncontentunits": "patternContentUnits",
-        "patterntransform": "patternTransform",
-        "patternunits": "patternUnits",
-        "pointsatx": "pointsAtX",
-        "pointsaty": "pointsAtY",
-        "pointsatz": "pointsAtZ",
-        "preservealpha": "preserveAlpha",
-        "preserveaspectratio": "preserveAspectRatio",
-        "primitiveunits": "primitiveUnits",
-        "refx": "refX",
-        "refy": "refY",
-        "repeatcount": "repeatCount",
-        "repeatdur": "repeatDur",
-        "requiredextensions": "requiredExtensions",
-        "requiredfeatures": "requiredFeatures",
-        "specularconstant": "specularConstant",
-        "specularexponent": "specularExponent",
-        "spreadmethod": "spreadMethod",
-        "startoffset": "startOffset",
-        "stddeviation": "stdDeviation",
-        "stitchtiles": "stitchTiles",
-        "surfacescale": "surfaceScale",
-        "systemlanguage": "systemLanguage",
-        "tablevalues": "tableValues",
-        "targetx": "targetX",
-        "targety": "targetY",
-        "textlength": "textLength",
-        "viewbox": "viewBox",
-        "viewtarget": "viewTarget",
-        "xchannelselector": "xChannelSelector",
-        "ychannelselector": "yChannelSelector",
-        "zoomandpan": "zoomAndPan"
-    ]
+    /// The adjusted SVG attribute name for a lower-case one that has one.
+    static func attribute(_ bytes: ArraySlice<UInt8>) -> String? {
+        switch bytes.count {
+            case 4:
+                if bytes.elementsEqual("refx".utf8) { return "refX" }
+                if bytes.elementsEqual("refy".utf8) { return "refY" }
+                return nil
+            case 7:
+                if bytes.elementsEqual("targetx".utf8) { return "targetX" }
+                if bytes.elementsEqual("targety".utf8) { return "targetY" }
+                if bytes.elementsEqual("viewbox".utf8) { return "viewBox" }
+                return nil
+            case 8:
+                if bytes.elementsEqual("calcmode".utf8) { return "calcMode" }
+                if bytes.elementsEqual("edgemode".utf8) { return "edgeMode" }
+                if bytes.elementsEqual("glyphref".utf8) { return "glyphRef" }
+                if bytes.elementsEqual("keytimes".utf8) { return "keyTimes" }
+                return nil
+            case 9:
+                if bytes.elementsEqual("keypoints".utf8) { return "keyPoints" }
+                if bytes.elementsEqual("maskunits".utf8) { return "maskUnits" }
+                if bytes.elementsEqual("pointsatx".utf8) { return "pointsAtX" }
+                if bytes.elementsEqual("pointsaty".utf8) { return "pointsAtY" }
+                if bytes.elementsEqual("pointsatz".utf8) { return "pointsAtZ" }
+                if bytes.elementsEqual("repeatdur".utf8) { return "repeatDur" }
+                return nil
+            case 10:
+                if bytes.elementsEqual("keysplines".utf8) { return "keySplines" }
+                if bytes.elementsEqual("numoctaves".utf8) { return "numOctaves" }
+                if bytes.elementsEqual("pathlength".utf8) { return "pathLength" }
+                if bytes.elementsEqual("textlength".utf8) { return "textLength" }
+                if bytes.elementsEqual("viewtarget".utf8) { return "viewTarget" }
+                if bytes.elementsEqual("zoomandpan".utf8) { return "zoomAndPan" }
+                return nil
+            case 11:
+                if bytes.elementsEqual("baseprofile".utf8) { return "baseProfile" }
+                if bytes.elementsEqual("filterunits".utf8) { return "filterUnits" }
+                if bytes.elementsEqual("markerunits".utf8) { return "markerUnits" }
+                if bytes.elementsEqual("markerwidth".utf8) { return "markerWidth" }
+                if bytes.elementsEqual("repeatcount".utf8) { return "repeatCount" }
+                if bytes.elementsEqual("startoffset".utf8) { return "startOffset" }
+                if bytes.elementsEqual("stitchtiles".utf8) { return "stitchTiles" }
+                if bytes.elementsEqual("tablevalues".utf8) { return "tableValues" }
+                return nil
+            case 12:
+                if bytes.elementsEqual("kernelmatrix".utf8) { return "kernelMatrix" }
+                if bytes.elementsEqual("lengthadjust".utf8) { return "lengthAdjust" }
+                if bytes.elementsEqual("markerheight".utf8) { return "markerHeight" }
+                if bytes.elementsEqual("patternunits".utf8) { return "patternUnits" }
+                if bytes.elementsEqual("spreadmethod".utf8) { return "spreadMethod" }
+                if bytes.elementsEqual("stddeviation".utf8) { return "stdDeviation" }
+                if bytes.elementsEqual("surfacescale".utf8) { return "surfaceScale" }
+                return nil
+            case 13:
+                if bytes.elementsEqual("attributename".utf8) { return "attributeName" }
+                if bytes.elementsEqual("attributetype".utf8) { return "attributeType" }
+                if bytes.elementsEqual("basefrequency".utf8) { return "baseFrequency" }
+                if bytes.elementsEqual("clippathunits".utf8) { return "clipPathUnits" }
+                if bytes.elementsEqual("gradientunits".utf8) { return "gradientUnits" }
+                if bytes.elementsEqual("preservealpha".utf8) { return "preserveAlpha" }
+                return nil
+            case 14:
+                if bytes.elementsEqual("primitiveunits".utf8) { return "primitiveUnits" }
+                if bytes.elementsEqual("systemlanguage".utf8) { return "systemLanguage" }
+                return nil
+            case 15:
+                if bytes.elementsEqual("diffuseconstant".utf8) { return "diffuseConstant" }
+                return nil
+            case 16:
+                if bytes.elementsEqual("kernelunitlength".utf8) { return "kernelUnitLength" }
+                if bytes.elementsEqual("maskcontentunits".utf8) { return "maskContentUnits" }
+                if bytes.elementsEqual("patterntransform".utf8) { return "patternTransform" }
+                if bytes.elementsEqual("requiredfeatures".utf8) { return "requiredFeatures" }
+                if bytes.elementsEqual("specularconstant".utf8) { return "specularConstant" }
+                if bytes.elementsEqual("specularexponent".utf8) { return "specularExponent" }
+                if bytes.elementsEqual("xchannelselector".utf8) { return "xChannelSelector" }
+                if bytes.elementsEqual("ychannelselector".utf8) { return "yChannelSelector" }
+                return nil
+            case 17:
+                if bytes.elementsEqual("gradienttransform".utf8) { return "gradientTransform" }
+                if bytes.elementsEqual("limitingconeangle".utf8) { return "limitingConeAngle" }
+                return nil
+            case 18:
+                if bytes.elementsEqual("requiredextensions".utf8) { return "requiredExtensions" }
+                return nil
+            case 19:
+                if bytes.elementsEqual("patterncontentunits".utf8) { return "patternContentUnits" }
+                if bytes.elementsEqual("preserveaspectratio".utf8) { return "preserveAspectRatio" }
+                return nil
+            default: return nil
+        }
+    }
 
-    /// The attributes that take a namespace: the name on the token, the prefix (empty for none), the local name, and the namespace (1 XLink, 2 XML, 3 XMLNS).
-    static let foreign: [String: (prefix: String, local: String, namespace: UInt8)] = [
-        "xlink:actuate": ("xlink", "actuate", 1),
-        "xlink:arcrole": ("xlink", "arcrole", 1),
-        "xlink:href": ("xlink", "href", 1),
-        "xlink:role": ("xlink", "role", 1),
-        "xlink:show": ("xlink", "show", 1),
-        "xlink:title": ("xlink", "title", 1),
-        "xlink:type": ("xlink", "type", 1),
-        "xml:lang": ("xml", "lang", 2),
-        "xml:space": ("xml", "space", 2),
-        "xmlns": ("", "xmlns", 3),
-        "xmlns:xlink": ("xmlns", "xlink", 3)
-    ]
+    /// A foreign attribute: the local name and the namespace (1 XLink, 2 XML, 3 XMLNS).
+    static func foreign(_ bytes: ArraySlice<UInt8>) -> (local: String, namespace: UInt8)? {
+        switch bytes.count {
+            case 5:
+                if bytes.elementsEqual("xmlns".utf8) { return ("xmlns", 3) }
+                return nil
+            case 8:
+                if bytes.elementsEqual("xml:lang".utf8) { return ("lang", 2) }
+                return nil
+            case 9:
+                if bytes.elementsEqual("xml:space".utf8) { return ("space", 2) }
+                return nil
+            case 10:
+                if bytes.elementsEqual("xlink:href".utf8) { return ("href", 1) }
+                if bytes.elementsEqual("xlink:role".utf8) { return ("role", 1) }
+                if bytes.elementsEqual("xlink:show".utf8) { return ("show", 1) }
+                if bytes.elementsEqual("xlink:type".utf8) { return ("type", 1) }
+                return nil
+            case 11:
+                if bytes.elementsEqual("xlink:title".utf8) { return ("title", 1) }
+                if bytes.elementsEqual("xmlns:xlink".utf8) { return ("xlink", 3) }
+                return nil
+            case 13:
+                if bytes.elementsEqual("xlink:actuate".utf8) { return ("actuate", 1) }
+                if bytes.elementsEqual("xlink:arcrole".utf8) { return ("arcrole", 1) }
+                return nil
+            default: return nil
+        }
+    }
 }

@@ -68,20 +68,22 @@ enum EntityTable {
     }
 
     private static func entity(at start: Int) -> Entity {
-        var values: [UInt32] = []
+        var first: UInt32 = 0
+        var second: UInt32?
         var value: UInt32 = 0
         var index = start
         while index < bytes.count, bytes[index] != 0x0A {
             let byte = bytes[index]
             if byte == 0x20 {
-                values.append(value)
+                first = value
+                second = 0
                 value = 0
             } else {
                 value = value * 16 + UInt32(byte <= 0x39 ? byte - 0x30 : byte - 0x61 + 10)
             }
             index += 1
         }
-        values.append(value)
-        return Entity(first: values[0], second: values.count > 1 ? values[1] : nil)
+        if second != nil { return Entity(first: first, second: value) }
+        return Entity(first: value, second: nil)
     }
 }

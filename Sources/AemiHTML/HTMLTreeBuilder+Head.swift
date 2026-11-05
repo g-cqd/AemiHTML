@@ -103,7 +103,7 @@ extension HTMLTreeBuilder {
                     .element,
                     name: .html,
                     space: .html,
-                    nameRange: tokenizer.out.intern("html".utf8)
+                    nameRange: tokenizer.out.intern(utf8: "html")
                 )
                 document.append(node, to: document.root)
                 push(node)
@@ -202,7 +202,7 @@ extension HTMLTreeBuilder {
             case .template:
                 guard hasTemplateOnStack else { return .consumed }
                 generateAllImpliedEndTagsThoroughly()
-                popUntilHTML([.template])
+                popUntilHTML(.template)
                 clearFormattingToMarker()
                 templateModes.removeLast()
                 resetInsertionMode()

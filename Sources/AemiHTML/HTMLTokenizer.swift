@@ -54,13 +54,14 @@ public struct HTMLTokenizer {
     var state: State
     var done = false
     var out: HTMLTokens
-    var lastStartTag: [UInt8]
+    /// The name of the last start tag the tokenizer made, as a range of the source or the scratch (an end tag must repeat it to end RCDATA, RAWTEXT and script data).
+    var lastStartTagRange: UInt64 = 0
 
     // The tag being read.
     var tagIsEnd = false
     var tagSlot = 0
     var attributeCount = 0
-    var attributeNames: Set<[UInt8]> = []
+    var attributeHashes: Set<UInt64> = []
     var valueSlot = 0
     var attributeIsDuplicate = false
     var attributeValueQuote: UInt8 = 0
@@ -77,7 +78,7 @@ public struct HTMLTokenizer {
     /// The tokens of `input`. Input over 4 GiB is cut there (a slot's offset is 32 bits).
     public static func tokenize(_ input: [UInt8], options: Options = Options()) -> HTMLTokens {
         var bytes = input.count > TapeSlot.maxLow ? Array(input.prefix(TapeSlot.maxLow)) : input
-        if bytes.contains(0x0D) { bytes = normalizedNewlines(bytes) }
+        if AemiKernels.firstIndexOfByte(0x0D, in: bytes) != nil { bytes = normalizedNewlines(bytes) }
         var result = HTMLTokens(source: bytes)
         let count = bytes.count
         result.tape.reserveCapacity(count / 16 + 16)
@@ -112,7 +113,8 @@ public struct HTMLTokenizer {
         self.options = options
         self.out = out
         allowsCDATA = options.allowsCDATA
-        lastStartTag = options.lastStartTag
+        self.out = out
+        lastStartTagRange = self.out.intern(options.lastStartTag)
         switch options.initialState {
             case .data: state = .data
             case .rcdata: state = .rcdata

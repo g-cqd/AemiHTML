@@ -27,8 +27,8 @@ extension HTMLTreeBuilder {
 
     mutating func inTable(_ token: inout BuilderToken) -> Disposition {
         switch token.kind {
-            case .character where isHTML(currentNode, .table, .tbody, .template, .tfoot, .thead, .tr):
-                pendingTableText = []
+            case .character where isHTML(currentNode, in: .tableTextContext):
+                pendingTableText.removeAll(keepingCapacity: true)
                 pendingTableTextHasNonWhitespace = false
                 originalMode = mode
                 mode = .inTableText
@@ -53,43 +53,43 @@ extension HTMLTreeBuilder {
         return result
     }
 
-    mutating func clearStackBack(toContext stoppers: [HTMLName]) {
-        while let node = stack.last, !isHTML(node, stoppers) { pop() }
+    mutating func clearStackBack(toContext stoppers: NameSet) {
+        while let node = stack.last, !isHTML(node, in: stoppers) { pop() }
     }
 
     private mutating func inTableStartTag(_ token: inout BuilderToken) -> Disposition {
         switch token.name {
             case .caption:
-                clearStackBack(toContext: [.table, .template, .html])
+                clearStackBack(toContext: .tableContext)
                 insertMarker()
                 insertHTMLElement(token)
                 mode = .inCaption
             case .colgroup:
-                clearStackBack(toContext: [.table, .template, .html])
+                clearStackBack(toContext: .tableContext)
                 insertHTMLElement(token)
                 mode = .inColumnGroup
             case .col:
-                clearStackBack(toContext: [.table, .template, .html])
+                clearStackBack(toContext: .tableContext)
                 insertFakeElement(.colgroup, "colgroup")
                 mode = .inColumnGroup
                 return .reprocess
             case .tbody, .tfoot, .thead:
-                clearStackBack(toContext: [.table, .template, .html])
+                clearStackBack(toContext: .tableContext)
                 insertHTMLElement(token)
                 mode = .inTableBody
             case .td, .th, .tr:
-                clearStackBack(toContext: [.table, .template, .html])
+                clearStackBack(toContext: .tableContext)
                 insertFakeElement(.tbody, "tbody")
                 mode = .inTableBody
                 return .reprocess
             case .table:
                 guard hasInScope(.table, .table) else { return .consumed }
-                popUntilHTML([.table])
+                popUntilHTML(.table)
                 resetInsertionMode()
                 return .reprocess
             case .style, .script, .template: return inHead(&token)
             case .input:
-                guard let type = tokenAttribute(token, "type"), type.map(Self.lower).elementsEqual("hidden".utf8) else {
+                guard let type = tokenAttribute(token, "type"), Self.equalsIgnoringCase(type, "hidden") else {
                     return inTableAnythingElse(&token)
                 }
                 insertHTMLElement(token)
@@ -109,7 +109,7 @@ extension HTMLTreeBuilder {
         switch token.name {
             case .table:
                 guard hasInScope(.table, .table) else { return .consumed }
-                popUntilHTML([.table])
+                popUntilHTML(.table)
                 resetInsertionMode()
             case .body, .caption, .col, .colgroup, .html, .tbody, .td, .tfoot, .th, .thead, .tr: break
             case .template: return inHead(&token)
@@ -131,19 +131,18 @@ extension HTMLTreeBuilder {
             }
             return .consumed
         }
-        let pending = pendingTableText
-        pendingTableText = []
         if pendingTableTextHasNonWhitespace {
             // Each run is processed as the "anything else" of "in table" does: through "in body", with foster parenting.
-            for range in pending {
+            for range in pendingTableText {
                 var run = BuilderToken(kind: .character, text: range)
                 run.characterClass =
                     tokenizer.out.bytes(range: range).allSatisfy(Self.isWhitespace) ? .whitespace : .other
                 _ = inTableAnythingElse(&run)
             }
         } else {
-            for range in pending { insertCharacters(range) }
+            for range in pendingTableText { insertCharacters(range) }
         }
+        pendingTableText.removeAll(keepingCapacity: true)
         pendingTableTextHasNonWhitespace = false
         mode = originalMode
         return .reprocess
@@ -173,7 +172,7 @@ extension HTMLTreeBuilder {
 
     private mutating func closeCaption() {
         generateImpliedEndTags()
-        popUntilHTML([.caption])
+        popUntilHTML(.caption)
         clearFormattingToMarker()
         mode = .inTable
     }
@@ -213,7 +212,7 @@ extension HTMLTreeBuilder {
     // MARK: in table body (13.2.6.4.13)
 
     mutating func inTableBody(_ token: inout BuilderToken) -> Disposition {
-        let stoppers: [HTMLName] = [.tbody, .tfoot, .thead, .template, .html]
+        let stoppers = NameSet.tableBodyContext
         switch (token.kind, token.name) {
             case (.startTag, .tr):
                 clearStackBack(toContext: stoppers)
@@ -253,26 +252,26 @@ extension HTMLTreeBuilder {
     mutating func inRow(_ token: inout BuilderToken) -> Disposition {
         switch (token.kind, token.name) {
             case (.startTag, .th), (.startTag, .td):
-                clearStackBack(toContext: [.tr, .template, .html])
+                clearStackBack(toContext: .tableRowContext)
                 insertHTMLElement(token)
                 mode = .inCell
                 insertMarker()
             case (.endTag, .tr):
                 guard hasInScope(.tr, .table) else { return .consumed }
-                clearStackBack(toContext: [.tr, .template, .html])
+                clearStackBack(toContext: .tableRowContext)
                 pop()
                 mode = .inTableBody
             case (.startTag, .caption), (.startTag, .col), (.startTag, .colgroup), (.startTag, .tbody),
                 (.startTag, .tfoot), (.startTag, .thead),
                 (.startTag, .tr), (.endTag, .table):
                 guard hasInScope(.tr, .table) else { return .consumed }
-                clearStackBack(toContext: [.tr, .template, .html])
+                clearStackBack(toContext: .tableRowContext)
                 pop()
                 mode = .inTableBody
                 return .reprocess
             case (.endTag, .tbody), (.endTag, .tfoot), (.endTag, .thead):
                 guard hasInScope(token.name, .table), hasInScope(.tr, .table) else { return .consumed }
-                clearStackBack(toContext: [.tr, .template, .html])
+                clearStackBack(toContext: .tableRowContext)
                 pop()
                 mode = .inTableBody
                 return .reprocess
@@ -309,7 +308,7 @@ extension HTMLTreeBuilder {
 
     private mutating func closeCell() {
         generateImpliedEndTags()
-        popUntilHTML([.td, .th])
+        popUntilHTML(in: .cells)
         clearFormattingToMarker()
         mode = .inRow
     }
@@ -335,7 +334,7 @@ extension HTMLTreeBuilder {
                 return .consumed
             case .endOfFile:
                 guard hasTemplateOnStack else { return .consumed }
-                popUntilHTML([.template])
+                popUntilHTML(.template)
                 clearFormattingToMarker()
                 templateModes.removeLast()
                 resetInsertionMode()

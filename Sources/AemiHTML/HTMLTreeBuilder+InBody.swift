@@ -85,8 +85,8 @@ extension HTMLTreeBuilder {
                 if hasParagraphInButtonScope { closeP() }
                 let node = insertHTMLElement(token)
                 if !parsingTemplateContents { formPointer = node }
-            case .li: listItemStart(token, items: [.li])
-            case .dd, .dt: listItemStart(token, items: [.dd, .dt])
+            case .li: listItemStart(token, items: .listItems)
+            case .dd, .dt: listItemStart(token, items: .definitionItems)
             case .plaintext:
                 if hasParagraphInButtonScope { closeP() }
                 insertHTMLElement(token)
@@ -94,7 +94,7 @@ extension HTMLTreeBuilder {
             case .button:
                 if hasInScope(.button) {
                     generateImpliedEndTags()
-                    popUntilHTML([.button])
+                    popUntilHTML(.button)
                 }
                 reconstructFormatting()
                 insertHTMLElement(token)
@@ -105,15 +105,15 @@ extension HTMLTreeBuilder {
     }
 
     /// The `li`, `dd` and `dt` start tags: close the open item of the same kind, up to the nearest special element that is not `address`, `div` or `p`.
-    private mutating func listItemStart(_ token: BuilderToken, items: [HTMLName]) {
+    private mutating func listItemStart(_ token: BuilderToken, items: NameSet) {
         framesetOK = false
         var index = stack.count - 1
         while index >= 0 {
             let node = stack[index]
-            if isHTMLElement(node), items.contains(name(of: node)) {
+            if isHTML(node, in: items) {
                 let found = name(of: node)
                 generateImpliedEndTags(except: found)
-                popUntilHTML([found])
+                popUntilHTML(found)
                 break
             }
             if isSpecial(node), !isHTML(node, .address, .div, .p) { break }
@@ -173,12 +173,12 @@ extension HTMLTreeBuilder {
                 framesetOK = false
             case .input:
                 if isFragmentSelect() { return .consumed }
-                if hasInScope(.select) { popUntilHTML([.select]) }
+                if hasInScope(.select) { popUntilHTML(.select) }
                 reconstructFormatting()
                 insertHTMLElement(token)
                 popJustInserted()
                 acknowledge(&token)
-                if let type = tokenAttribute(token, "type"), type.map(Self.lower).elementsEqual("hidden".utf8) {
+                if let type = tokenAttribute(token, "type"), Self.equalsIgnoringCase(type, "hidden") {
                 } else {
                     framesetOK = false
                 }
@@ -224,7 +224,7 @@ extension HTMLTreeBuilder {
             case .select:
                 if isFragmentSelect() { return .consumed }
                 if hasInScope(.select) {
-                    popUntilHTML([.select])
+                    popUntilHTML(.select)
                     return .consumed
                 }
                 reconstructFormatting()
@@ -282,7 +282,7 @@ extension HTMLTreeBuilder {
                 let name = token.name
                 guard hasInScope(name) else { return .consumed }
                 generateImpliedEndTags()
-                popUntilHTML([name])
+                popUntilHTML(name)
             case .form: closeForm()
             case .p:
                 if !hasParagraphInButtonScope { insertFakeElement(.p, "p") }
@@ -290,12 +290,12 @@ extension HTMLTreeBuilder {
             case .li:
                 guard hasInScope(.li, .listItem) else { return .consumed }
                 generateImpliedEndTags(except: .li)
-                popUntilHTML([.li])
+                popUntilHTML(.li)
             case .dd, .dt:
                 let name = token.name
                 guard hasInScope(name) else { return .consumed }
                 generateImpliedEndTags(except: name)
-                popUntilHTML([name])
+                popUntilHTML(name)
             case .h1, .h2, .h3, .h4, .h5, .h6:
                 guard hasInScope(.regular, where: Self.isHeading) else { return .consumed }
                 generateImpliedEndTags()
@@ -306,7 +306,7 @@ extension HTMLTreeBuilder {
                 let name = token.name
                 guard hasInScope(name) else { return .consumed }
                 generateImpliedEndTags()
-                popUntilHTML([name])
+                popUntilHTML(name)
                 clearFormattingToMarker()
             case .br:
                 reconstructFormatting()
@@ -328,7 +328,7 @@ extension HTMLTreeBuilder {
         } else {
             guard hasInScope(.form) else { return }
             generateImpliedEndTags()
-            popUntilHTML([.form])
+            popUntilHTML(.form)
         }
     }
 

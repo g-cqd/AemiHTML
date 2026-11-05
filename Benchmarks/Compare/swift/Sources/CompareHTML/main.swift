@@ -42,5 +42,34 @@ func measure(_ name: String, collectsErrors: Bool) {
         "{\"engine\":\"\(name)\",\"what\":\"tokens\",\"pages\":\(pages.count),\"bytes\":\(total),\"seconds\":\(best),\"mbps\":\(Double(total) / best / 1e6),\"tokens\":\(counts.tokens),\"text_bytes\":\(counts.text)}"
     )
 }
+func runParse() -> (tokens: Int, text: Int) {
+    var nodes = 0
+    var textBytes = 0
+    for page in pages {
+        let document = HTMLParser.parse(page)
+        nodes += document.nodeCount
+        for node in document.descendants(of: document.root) where document.kind(node) == .text {
+            textBytes += document.data(node).count
+        }
+    }
+    return (nodes, textBytes)
+}
+
+func measureParse() {
+    var counts = runParse()
+    var best = Double.infinity
+    for _ in 0 ..< rounds {
+        let start = cpu()
+        counts = runParse()
+        best = Swift.min(best, cpu() - start)
+    }
+    print(
+        "{\"engine\":\"aemihtml-parse\",\"what\":\"dom\",\"pages\":\(pages.count),\"bytes\":\(total),\"seconds\":\(best),\"mbps\":\(Double(total) / best / 1e6),\"tokens\":\(counts.tokens),\"text_bytes\":\(counts.text)}"
+    )
+}
+if arguments.contains("--parse") {
+    measureParse()
+    exit(0)
+}
 measure("aemihtml", collectsErrors: false)
 measure("aemihtml-with-errors", collectsErrors: true)

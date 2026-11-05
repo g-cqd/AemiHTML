@@ -76,6 +76,8 @@ struct HTMLTreeBuilder {
         self.scripting = scripting
         self.maxDepth = maxDepth
         document = HTMLDocument(source: [], scratch: [])
+        document.records.reserveCapacity(tokenizer.out.source.count / 24 + 16)
+        document.attributeRecords.reserveCapacity(tokenizer.out.source.count / 48 + 16)
     }
 
     // MARK: The tokenizer's tokens

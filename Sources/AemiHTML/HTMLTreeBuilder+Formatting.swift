@@ -27,19 +27,21 @@ extension HTMLTreeBuilder {
     mutating func pushFormatting(_ node: Node, tokenIndex: Int) {
         // An element too deep to be on the stack is not reopened later either.
         if lastInsertWasLeaf { return }
-        var matches: [Int] = []
+        var matches = 0
+        var earliest = -1
         var index = formatting.count - 1
         while index >= 0, !formatting[index].isMarker {
             let entry = formatting[index]
-            if document.names[Int(entry.node.raw)] == document.names[Int(node.raw)],
-                document.namespaces[Int(entry.node.raw)] == document.namespaces[Int(node.raw)],
+            if document.atom(entry.node) == document.atom(node),
+                document.namespaceRaw(entry.node) == document.namespaceRaw(node),
                 sameAttributes(entry.tokenIndex, tokenIndex)
             {
-                matches.append(index)
+                matches += 1
+                earliest = index
             }
             index -= 1
         }
-        if matches.count >= 3, let earliest = matches.last { formatting.remove(at: earliest) }
+        if matches >= 3 { formatting.remove(at: earliest) }
         formatting.append(FormattingEntry(node: node, tokenIndex: tokenIndex))
         // The list is bounded as the stack is: entries that outlived their elements (`<div><b x=1></div>` over and over) are dropped oldest first, which keeps reconstruction linear.
         if formatting.count > maxDepth { formatting.removeFirst() }

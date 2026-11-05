@@ -218,52 +218,61 @@ public struct HTMLDocument: Sendable {
 
     /// Puts `child` last under `parent`.
     mutating func append(_ child: Node, to parent: Node) {
-        detach(child)
-        let last = records[Int(parent.raw)].lastChild
-        records[Int(child.raw)].parent = parent.raw
-        records[Int(child.raw)].previousSibling = last
-        records[Int(child.raw)].nextSibling = -1
-        if last >= 0 {
-            records[Int(last)].nextSibling = child.raw
-        } else {
-            records[Int(parent.raw)].firstChild = child.raw
-        }
-        records[Int(parent.raw)].lastChild = child.raw
+        records.withUnsafeMutableBufferPointer { unsafe Self.link(child, in: parent, before: .none, $0) }
     }
 
     /// Puts `child` under `parent` before `reference` (last, if `reference` is none).
     mutating func insert(_ child: Node, in parent: Node, before reference: Node) {
-        guard !reference.isNone else { return append(child, to: parent) }
-        detach(child)
-        let previous = records[Int(reference.raw)].previousSibling
-        records[Int(child.raw)].parent = parent.raw
-        records[Int(child.raw)].previousSibling = previous
-        records[Int(child.raw)].nextSibling = reference.raw
-        records[Int(reference.raw)].previousSibling = child.raw
-        if previous >= 0 {
-            records[Int(previous)].nextSibling = child.raw
-        } else {
-            records[Int(parent.raw)].firstChild = child.raw
-        }
+        records.withUnsafeMutableBufferPointer { unsafe Self.link(child, in: parent, before: reference, $0) }
     }
 
     /// Takes `node` out of its parent.
     mutating func detach(_ node: Node) {
-        let record = records[Int(node.raw)]
+        records.withUnsafeMutableBufferPointer { unsafe Self.unlink(node, $0) }
+    }
+
+    // The links are changed through one pointer: an array checks, at every element it writes, that it is the only owner of its storage.
+    private static func unlink(_ node: Node, _ records: UnsafeMutableBufferPointer<Record>) {
+        let record = unsafe records[Int(node.raw)]
         guard record.parent >= 0 else { return }
         if record.previousSibling >= 0 {
-            records[Int(record.previousSibling)].nextSibling = record.nextSibling
+            unsafe records[Int(record.previousSibling)].nextSibling = record.nextSibling
         } else {
-            records[Int(record.parent)].firstChild = record.nextSibling
+            unsafe records[Int(record.parent)].firstChild = record.nextSibling
         }
         if record.nextSibling >= 0 {
-            records[Int(record.nextSibling)].previousSibling = record.previousSibling
+            unsafe records[Int(record.nextSibling)].previousSibling = record.previousSibling
         } else {
-            records[Int(record.parent)].lastChild = record.previousSibling
+            unsafe records[Int(record.parent)].lastChild = record.previousSibling
         }
-        records[Int(node.raw)].parent = -1
-        records[Int(node.raw)].previousSibling = -1
-        records[Int(node.raw)].nextSibling = -1
+        unsafe records[Int(node.raw)].parent = -1
+        unsafe records[Int(node.raw)].previousSibling = -1
+        unsafe records[Int(node.raw)].nextSibling = -1
+    }
+
+    private static func link(
+        _ child: Node,
+        in parent: Node,
+        before reference: Node,
+        _ records: UnsafeMutableBufferPointer<Record>
+    ) {
+        unsafe unlink(child, records)
+        let previous =
+            unsafe reference.isNone ? records[Int(parent.raw)].lastChild : records[Int(reference.raw)].previousSibling
+        unsafe records[Int(child.raw)].parent = parent.raw
+        unsafe records[Int(child.raw)].previousSibling = previous
+        unsafe records[Int(child.raw)].nextSibling = reference.raw
+        if reference.isNone {
+            // `reference.raw` is -1: the child ends the list.
+        } else {
+            unsafe records[Int(reference.raw)].previousSibling = child.raw
+        }
+        if previous >= 0 {
+            unsafe records[Int(previous)].nextSibling = child.raw
+        } else {
+            unsafe records[Int(parent.raw)].firstChild = child.raw
+        }
+        if reference.isNone { unsafe records[Int(parent.raw)].lastChild = child.raw }
     }
 
     /// Moves all the children of `from` to the end of `to`.

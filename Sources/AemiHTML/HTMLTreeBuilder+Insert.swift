@@ -43,10 +43,15 @@ extension HTMLTreeBuilder {
     enum Adjust { case none, svg, mathml }
 
     /// 13.2.6.1: creates the element for the start tag at `tokenIndex` in `space`, with the attribute and name adjustments of foreign content.
-    mutating func createElement(tokenIndex: Int, space: HTMLDocument.Namespace, adjust: Adjust = .none) -> Node {
+    mutating func createElement(
+        tokenIndex: Int,
+        space: HTMLDocument.Namespace,
+        adjust: Adjust = .none,
+        atom known: HTMLName? = nil
+    ) -> Node {
         let nameSlot = tokenizer.out.tape[tokenIndex + 1]
         var nameRange = TapeSlot.make(tag: 0, aux: TapeSlot.aux(nameSlot), low: TapeSlot.low(nameSlot))
-        var atom = HTMLName.lookup(tokenizer.out.bytes(range: nameRange))
+        var atom = known ?? HTMLName.lookup(tokenizer.out.bytes(range: nameRange))
         // What the name becomes is decided first, from a slice of the bytes, and the scratch is written after the slice is gone: a slice kept across an append makes the append copy the whole scratch.
         var spelling: String?
         if let replacement = nameOverride {
@@ -110,9 +115,13 @@ extension HTMLTreeBuilder {
 
     /// Creates an element for the start tag at `tokenIndex`, inserts it at the appropriate place and pushes it, unless the stack is already `maxDepth` deep (then it is a leaf: `lastInsertWasLeaf`).
     @discardableResult
-    mutating func insertForeignElement(tokenIndex: Int, space: HTMLDocument.Namespace) -> Node {
+    mutating func insertForeignElement(
+        tokenIndex: Int,
+        space: HTMLDocument.Namespace,
+        atom: HTMLName? = nil
+    ) -> Node {
         let adjust: Adjust = space == .svg ? .svg : (space == .mathml ? .mathml : .none)
-        let node = createElement(tokenIndex: tokenIndex, space: space, adjust: adjust)
+        let node = createElement(tokenIndex: tokenIndex, space: space, adjust: adjust, atom: atom)
         let place = appropriatePlace()
         insertNode(node, at: place)
         if stack.count < maxDepth {
@@ -134,7 +143,7 @@ extension HTMLTreeBuilder {
 
     @discardableResult
     mutating func insertHTMLElement(_ token: BuilderToken) -> Node {
-        insertForeignElement(tokenIndex: token.index, space: .html)
+        insertForeignElement(tokenIndex: token.index, space: .html, atom: token.name)
     }
 
     /// "Immediately pop the current node off the stack": the element just inserted, unless it was too deep to be pushed.

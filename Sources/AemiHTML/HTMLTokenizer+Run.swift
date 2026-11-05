@@ -166,15 +166,15 @@ extension HTMLTokenizer {
 
     /// The `aux` and `low` of a name for `from ..< to` of the source: the source itself if it has no upper-case letter and no NUL, else a lower-case copy in the scratch, NUL as U+FFFD.
     mutating func nameSlot(_ from: Int, _ to: Int, folds: Bool = true) -> (aux: Int, low: Int) {
-        var plain = true
-        var index = from
-        while index < to {
-            let value = input[index]
-            if value == 0 || (folds && value >= 0x41 && value <= 0x5A) {
-                plain = false
-                break
+        precondition(from >= 0 && to <= input.count, "a name lies inside the input")
+        let plain = input.withUnsafeBufferPointer { buffer in
+            var index = from
+            while index < to {
+                let value = unsafe buffer[index]
+                if value == 0 || (folds && value >= 0x41 && value <= 0x5A) { return false }
+                index += 1
             }
-            index += 1
+            return true
         }
         if plain { return (Swift.min(to - from, HTMLTokens.maxLength) << 1, from) }
         let start = out.scratch.count

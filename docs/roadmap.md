@@ -16,6 +16,4 @@
 
 ## Next, in the order the design gives
 - The tree builder's cost: about 1,900 instructions per node, with a `memmove` of over 400 bytes in `dispatch`.
-- Boilerplate by link density and text density (research, topic 12) as a fallback when a page names no container.
-- A preorder tape view of the arena, for scans that do not need links.
 - A `fetch` tool in ask on top of `HTMLExtractor` (ask roadmap 0139).

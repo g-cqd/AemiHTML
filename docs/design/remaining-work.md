@@ -11,7 +11,7 @@ Written 2026-11-05 after the differential runs, and updated the same day. Each i
 | `selectedcontent`, ill-formed UTF-8, tree differential | Built earlier (see below). |
 | Tree-builder parse errors | **Built.** `HTMLTreeError` (15 classes), `HTMLDocument.treeErrors` with the offset of the token; one or more hand-written cases per class (92 cases); the count agrees with html5lib's in 1,590 of 1,600 cases (below). |
 | Performance candidates | **Not built**; a better way to measure them was found (below). |
-| Streaming of `parseFragment` | **Built** (`HTMLStreamParser(fragmentContext:)`; every cut of the 206 fragment cases equals the whole). WPT tree files: **built** (section 6). Boilerplate by link density, preorder tape view | Not started. |
+| Streaming of `parseFragment` | **Built** (`HTMLStreamParser(fragmentContext:)`; every cut of the 206 fragment cases equals the whole). WPT tree files: **built** (section 6). Preorder view and boilerplate by link density | **Built** (section 6; the density finder is an option, off by default). |
 
 ### What was learned while building these
 
@@ -98,7 +98,7 @@ A token that does not complete is re-scanned from its start when more arrives; a
 
 ## 6. Other items from the roadmap
 
-- **Boilerplate by link density** (research topic 12): a fallback when a page names no container. Build with a corpus of 15 pages and hand-marked main content; measure recall of text. Not started.
+- **Boilerplate by link density: built as an option** (`HTMLExtractor.densestContainer`, `HTMLExtractOptions.fallsBackToTextDensity`, off by default), on the **preorder view** (`HTMLDocument.preorder()`: nodes in document order with subtree ends, depth and parent, so a subtree's text is two lookups in a prefix sum; built without recursion, tested against `descendants` on odd trees and on a 300,000-deep chain). Score `(T - L) * (1 - L / T)` over the elements that may hold a page, the smallest within 90% of the best, refused if it holds under half of the page's non-link text. On the 15 pages: 99-100% recall and precision against the named container on the 8 that have one, nil on the home page of parallel blocks (it was 23% before the guard), and no page is worse than the body. It earns a default only with pages marked by hand (`research/results/E16.md`).
 - **Preorder tape view of the arena** (for scans that do not need links): only if a consumer's scan is measurably slower on the linked arena. Not started.
 - **WPT tree-construction files: done** (`Scripts/fetch-wpt-tree.sh`, WPT `html/syntax/parsing/resources` at a pinned commit). 62 files against html5lib's 57; the new ones are `processing-instructions.dat` (124 cases, all pass once the harness wrote the dump as `<?target data?>`), `search-element.dat` and `void-in-phrasing.dat`, plus new cases in `template`, `plain-text-unsafe`, `tests19`, `html5test-com` and others, and the `scripted_*` files, which run scripts and are skipped. The four known differences that were processing instructions are gone. A loader fault found on the way: the newer files put a case's `#description` before its `#data`, so it trailed the case before it and made its expected tree wrong.
 - **Late `meta` restart, `isindex`:** `isindex` is not special in the current standard and html5ever treats it as if it were; AemiHTML follows the standard.

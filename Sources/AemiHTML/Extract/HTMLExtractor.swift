@@ -35,11 +35,15 @@ public enum HTMLExtractor {
         -> HTMLExtractedPage
     {
         let facts = scan(document, options: options)
-        let container = facts.container ?? facts.body ?? document.root
+        var container = facts.container
+        if container == nil, options.fallsBackToTextDensity, options.containerSelector == nil {
+            container = densestContainer(in: document, dropsHiddenContent: options.dropsHiddenContent)
+        }
+        let content = container ?? facts.body ?? document.root
         return HTMLExtractedPage(
             title: facts.title(document),
             description: facts.description(document),
-            sections: sections(document, container, options)
+            sections: sections(document, content, options)
         )
     }
 

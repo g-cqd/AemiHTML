@@ -21,6 +21,8 @@ public struct HTMLExtractOptions: Sendable {
     public var images = Images.markdown
     /// An explicit content container (`tag`, `.class` or `#id`); without one: `main`, `article`, `[role=main]`, `.content`, `#content`, `#contents`, else `body`.
     public var containerSelector: String?
+    /// For a page that names no container (the fallbacks above find none, or none with a real share of the text): take the element with the most text and the least link text (`HTMLExtractor.densestContainer`) instead of the whole `body`, which leaves out navigation and link lists that no element marks as such. Off by default: the contract is the `body`.
+    public var fallsBackToTextDensity = false
     /// Rewrites each link's destination as written: return the new destination, or nil to keep the text and drop the link. Applied before the scheme check, which keeps only http, https, mailto, tel, fragments and relative references.
     public var linkResolver: (@Sendable (String) -> String?)?
     /// Cut the content into sections at `h2` (`h3` if there is none).

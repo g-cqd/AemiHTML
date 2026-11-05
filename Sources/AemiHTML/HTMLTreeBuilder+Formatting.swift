@@ -25,6 +25,8 @@ extension HTMLTreeBuilder {
 
     /// Pushes onto the list of active formatting elements, dropping the earliest of three equal entries after the last marker (the Noah's Ark clause).
     mutating func pushFormatting(_ node: Node, tokenIndex: Int) {
+        // An element too deep to be on the stack is not reopened later either.
+        if lastInsertWasLeaf { return }
         var matches: [Int] = []
         var index = formatting.count - 1
         while index >= 0, !formatting[index].isMarker {
@@ -39,6 +41,8 @@ extension HTMLTreeBuilder {
         }
         if matches.count >= 3, let earliest = matches.last { formatting.remove(at: earliest) }
         formatting.append(FormattingEntry(node: node, tokenIndex: tokenIndex))
+        // The list is bounded as the stack is: entries that outlived their elements (`<div><b x=1></div>` over and over) are dropped oldest first, which keeps reconstruction linear.
+        if formatting.count > maxDepth { formatting.removeFirst() }
     }
 
     mutating func insertMarker() { formatting.append(FormattingEntry(node: .none, tokenIndex: 0)) }

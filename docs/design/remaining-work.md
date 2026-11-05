@@ -1,6 +1,24 @@
 # Remaining work: designs, and what the measurements changed
 
-Written 2026-11-05 after the differential runs. Each item says what it is for, the design, the oracle that tells us it is right, and the order. Nothing here is built unless it says so.
+Written 2026-11-05 after the differential runs, and updated the same day. Each item says what it is for, the design, the oracle that tells us it is right, and the order.
+
+## Status (end of 2026-11-05)
+
+| Item | State |
+|---|---|
+| Encodings (labels, BOM, prescan, sniffing, the late-`meta` restart, UTF-16, 28 single-byte, Shift_JIS, EUC-JP, ISO-2022-JP, GBK, gb18030, Big5, EUC-KR) | **Built.** html5lib's 82 encoding cases pass through the whole path; 668 vectors against Python's codecs (one encoding, KOI8-U, differs by the standard's own table); the standard's error rules by hand. |
+| Chunked input (`HTMLStreamParser`) | **Built.** Every cut of every html5lib tokenizer case and every non-fragment tree case gives the whole document's tokens, errors and tree; real pages at four chunk sizes; 1,500 random documents. A token larger than the pieces costs linear time. Fragment parsing is not streamed. |
+| `selectedcontent`, ill-formed UTF-8, tree differential | Built earlier (see below). |
+| Tree-builder parse errors | **Not built.** 117 sites in 13.2.6 and a weak oracle (below). Needs an owner decision on whether the list is wanted. |
+| Performance candidates | **Not built**; a better way to measure them was found (below). |
+| Boilerplate by link density, preorder tape view, WPT tree files | Not started. |
+
+### What was learned while building these
+
+- **Instructions retired are the measure.** `/usr/bin/time -l` reports them, and they do not move with the machine's load: at a load of 14 to 60 the same binary ran at 55 to 90 MB/s, but its instruction count differed by under 0.5% between runs. Every wall-clock A/B in this file was too noisy to read below 10%. With the count, a change of 1% shows. The streaming support costs 1.6 to 2.3% of a parse's instructions (11.89G to 12.1G over five passes of the 15 pages).
+- **Where the instructions are:** tokenizing is 4.3G of the 12.1G (about 720 per token); the tree builder is 7.8G, **about 1,900 per node**, which is a lot. The inclusive profile has `dispatch` at 46%, `insertForeignElement` 9%, `createElement` 7%, `insertCharacters` 6%, `usesForeignRules` 4%, `HTMLName.lookup` 3%, and `memmove` called from `dispatch` at about 8% (a large copy, over 400 bytes, in a per-token path; not found: a debugger breakpoint on `memmove` caught startup noise first, and the next step is a conditional breakpoint inside the parse, or Instruments' Time Profiler with inlined frames).
+- **The tokenizer can be streamed without being rewritten** by marking where each token began and undoing a step that touched the end of the input. The cost is one branch where the machine used to treat the end as the end of the document, and the test that finds the places it was missed is "every cut of every case": it found one real bug (a text run extended in place has to be un-extended by the undo) and one design error (a held-back CDATA tail must not split a character).
+
 
 ## Done since the first plan (and measured)
 
@@ -24,7 +42,7 @@ Candidates, each to be tried alone and kept only if an A/B on the same machine s
 
 Honest expectation: 1 and 2 together might give 10 to 15%. A step change (2x) would need the builder to stop visiting a token through `dispatch`'s generic path, which is a redesign; do it only if a consumer needs it. The extractor, not the parser, is the cost a model-facing tool sees (0.2 s for 20 MB).
 
-## 2. Encodings (the next feature with a consumer)
+## 2. Encodings (built; the design as it was written)
 
 **Why:** real pages are not all UTF-8 (windows-1252, Shift_JIS, GBK, EUC-KR, Big5 are common in the long tail), and the `fetch` tool will meet them. Today non-UTF-8 bytes become U+FFFD.
 
@@ -54,7 +72,10 @@ Honest expectation: 1 and 2 together might give 10 to 15%. A step change (2x) wo
 
 **Order:** after phase 1 of the encodings (windows-1252 and the prescan are what most pages need).
 
-## 4. Chunked input
+## 4. Chunked input (built; the design as it was written, with what changed)
+
+What changed in building it: the tokenizer undoes a step by remembering a mark (position, state, tape and scratch and error lengths, and the last tape slot, because a text run is extended in place) at the start of each token; a text state that uses up the input keeps the text and seals the tape, so later text is another slot; the byte preparation (BOM, ill-formed UTF-8, CR LF) carries a held tail between pieces; and the driver waits for half as many bytes again after an undo, which makes a huge token fed a byte at a time linear.
+
 
 **Value now:** low. The fetch tool caps the body, so it can read it whole and parse once. Chunking would matter for a live preview of a streamed response or for memory on huge inputs. Build it when there is a consumer; keep the design.
 

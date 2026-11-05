@@ -68,10 +68,19 @@ func measureParse() {
     )
 }
 func dumpTokens() {
+    // Literal matching: a tab before a combining mark is part of a composed sequence, and the default search does not see it.
     func escape(_ text: String) -> String {
-        text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\n", with: "\\n")
-            .replacingOccurrences(of: "\r", with: "\\r")
-            .replacingOccurrences(of: "\t", with: "\\t")
+        var out = ""
+        for scalar in text.unicodeScalars {
+            switch scalar {
+                case "\\": out += "\\\\"
+                case "\n": out += "\\n"
+                case "\r": out += "\\r"
+                case "\t": out += "\\t"
+                default: out.unicodeScalars.append(scalar)
+            }
+        }
+        return out
     }
     func string(_ bytes: ArraySlice<UInt8>) -> String { String(decoding: bytes, as: UTF8.self) }
     let names = ((try? FileManager.default.contentsOfDirectory(atPath: arguments[1])) ?? []).sorted()

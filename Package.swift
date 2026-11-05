@@ -26,7 +26,10 @@ let markdownDependency: Package.Dependency = .package(
     revision: "15c730baa5e89b5c70b1142e67fa2578c8c3989e"
 )
 
-let package = Package(
+// The benchmark framework is a dependency of the suite only, and the suite exists only for `AEMIHTML_DEV=1`: a package that depends on AemiHTML, and a plain `swift build` or `swift test`, never fetch it.
+let isDev = Context.environment["AEMIHTML_DEV"] != nil
+
+var package = Package(
     name: "AemiHTML",
     platforms: [.macOS(.v15), .iOS(.v18), .tvOS(.v18), .watchOS(.v11), .visionOS(.v2)],
     products: [.library(name: "AemiHTML", targets: ["AemiHTML"])],
@@ -50,3 +53,16 @@ let package = Package(
         )
     ]
 )
+
+if isDev {
+    package.dependencies.append(.package(url: "https://github.com/ordo-one/benchmark", from: "1.38.0"))
+    package.targets.append(
+        .executableTarget(
+            name: "AemiHTMLSuite",
+            dependencies: ["AemiHTML", .product(name: "Benchmark", package: "benchmark")],
+            path: "Benchmarks/AemiHTMLSuite",
+            swiftSettings: strictSettings,
+            plugins: [.plugin(name: "BenchmarkPlugin", package: "benchmark")]
+        )
+    )
+}

@@ -27,6 +27,7 @@ extension HTMLTreeBuilder {
             case .character:
                 switch token.characterClass {
                     case .null:
+                        characterErrors(.unexpectedNullCharacter, token)
                         let replacement = tokenizer.out.intern([0xEF, 0xBF, 0xBD])
                         for _ in 0 ..< length(token.text) { insertCharacters(replacement) }
                     case .whitespace: insertCharacters(token.text)
@@ -36,7 +37,8 @@ extension HTMLTreeBuilder {
                 }
             case .comment: insertComment(token.text)
             case .processingInstruction: insertProcessingInstruction(token)
-            case .doctype, .endOfFile: break
+            case .doctype: parseError(.unexpectedDoctype)
+            case .endOfFile: break
             case .startTag: foreignStartTag(&token)
             case .endTag: foreignEndTag(&token)
         }
@@ -64,9 +66,11 @@ extension HTMLTreeBuilder {
 
     private mutating func foreignStartTag(_ token: inout BuilderToken) {
         if breaksOut(token) {
+            parseError(.unexpectedHTMLInForeignContent)
             popToHTMLContent()
             var again = token
             while handle(&again) == .reprocess {}
+            token.acknowledged = again.acknowledged
             return
         }
         let adjusted = adjustedCurrentNode
@@ -81,6 +85,7 @@ extension HTMLTreeBuilder {
 
     private mutating func foreignEndTag(_ token: inout BuilderToken) {
         if token.name == .br || token.name == .p {
+            parseError(.unexpectedHTMLInForeignContent)
             popToHTMLContent()
             var again = token
             while handle(&again) == .reprocess {}
@@ -91,6 +96,9 @@ extension HTMLTreeBuilder {
             return
         }
         let wanted = tagNameBytes(token)
+        if let current = stack.last, !Self.equalsLowered(nameBytes(of: current), wanted) {
+            parseError(.foreignEndTagMismatch)
+        }
         var index = stack.count - 1
         while index >= 0 {
             let node = stack[index]

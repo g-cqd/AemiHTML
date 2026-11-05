@@ -21,7 +21,16 @@ public enum HTMLParser {
 
     /// Parses a document.
     public static func parse(_ input: [UInt8], options: Options = Options()) -> HTMLDocument {
-        var builder = HTMLTreeBuilder(
+        options.collectsErrors
+            ? parse(input, options, reporting: LoudErrors.self) : parse(input, options, reporting: QuietErrors.self)
+    }
+
+    private static func parse<Reporting: TreeErrorReporting>(
+        _ input: [UInt8],
+        _ options: Options,
+        reporting: Reporting.Type
+    ) -> HTMLDocument {
+        var builder = HTMLTreeBuilder<Reporting>(
             tokenizer: makeTokenizer(input, options, state: .data),
             scripting: options.scripting,
             maxDepth: options.maxDepth
@@ -49,14 +58,17 @@ public enum HTMLParser {
                 default: break
             }
         }
-        var builder = HTMLTreeBuilder(
-            tokenizer: makeTokenizer(input, options, state: state),
-            scripting: options.scripting,
-            maxDepth: options.maxDepth
-        )
-        builder.setUpFragment(context: context, name: name, namespace: namespace)
-        builder.run()
-        return builder.document
+        func build<Reporting: TreeErrorReporting>(_: Reporting.Type) -> HTMLDocument {
+            var builder = HTMLTreeBuilder<Reporting>(
+                tokenizer: makeTokenizer(input, options, state: state),
+                scripting: options.scripting,
+                maxDepth: options.maxDepth
+            )
+            builder.setUpFragment(context: context, name: name, namespace: namespace)
+            builder.run()
+            return builder.document
+        }
+        return options.collectsErrors ? build(LoudErrors.self) : build(QuietErrors.self)
     }
 
     private static func makeTokenizer(_ input: [UInt8], _ options: Options, state: HTMLTokenizer.InitialState)

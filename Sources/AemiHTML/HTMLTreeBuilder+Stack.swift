@@ -210,8 +210,12 @@ extension HTMLTreeBuilder {
     /// "Close a p element": generate implied end tags except for `p`, then pop through the `p`.
     mutating func closeP() {
         generateImpliedEndTags(except: .p)
+        expectCurrent(.p)
         popUntilHTML(.p)
     }
+
+    /// Whether the current node is an HTML element named `name`: what "if the current node is not..." asks after the implied end tags.
+    mutating func currentIs(_ name: HTMLName) -> Bool { isHTML(currentNode, name) }
 
     /// Whether the stack has a `template` element.
     var hasTemplateOnStack: Bool {

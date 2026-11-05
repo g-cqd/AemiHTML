@@ -16,7 +16,6 @@
 
 ## Next, in the order the design gives
 - Web-platform-tests' tree-construction files (the html5lib copy is frozen).
-- The tree builder's own parse errors (117 sites; needs a decision whether the list is wanted).
 - The tree builder's cost: about 1,900 instructions per node, with a `memmove` of over 400 bytes in `dispatch`.
 - Streaming for fragments (`parseFragment`).
 - Boilerplate by link density and text density (research, topic 12) as a fallback when a page names no container.

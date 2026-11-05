@@ -36,7 +36,29 @@ enum Html5libTree {
         var fragment: String?
         var scripting: Bool?
         var expected: String
+        /// How many errors html5lib lists for the case (its own wording and its own idea of where the standard says one).
+        var listedErrors = 0
+        var listedLines: [String] = []
         var id: String { "\(file)#\(number)" }
+    }
+
+    /// The errors a case lists: the full list is under `#errors`; the newer cases repeat the tokenizer's share of it under `#new-errors` (with positions), and a few new cases list only there.
+    private static func listedErrors(in text: String) -> (count: Int, lines: [String]) {
+        var lines: [String] = []
+        var listedNew = 0
+        var section = "#errors"
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            if line.hasPrefix("#") {
+                section = String(line)
+            } else if !line.isEmpty {
+                if section == "#errors" {
+                    lines.append(String(line))
+                } else if section == "#new-errors" {
+                    listedNew += 1
+                }
+            }
+        }
+        return (lines.isEmpty ? listedNew : lines.count, lines)
     }
 
     static func cases(in file: String) -> [Case] {
@@ -52,6 +74,7 @@ enum Html5libTree {
             guard let errors = body.range(of: "\n#errors\n") else { continue }
             var data = String(body[..<errors.lowerBound])
             var rest = String(body[errors.upperBound...])
+            let (listed, lines) = listedErrors(in: rest)
             var fragment: String?
             var scripting: Bool?
             if let range = rest.range(of: "#new-errors\n") { rest = String(rest[range.lowerBound...]) }
@@ -74,7 +97,9 @@ enum Html5libTree {
                     data: data,
                     fragment: fragment,
                     scripting: scripting,
-                    expected: expected
+                    expected: expected,
+                    listedErrors: listed,
+                    listedLines: lines
                 )
             )
         }

@@ -1,10 +1,7 @@
 internal import AemiKernel
 
 extension HTMLTreeBuilder {
-    struct Place {
-        var parent: Node
-        var before: Node
-    }
+    typealias Place = HTMLInsertionPlace
 
     /// The contents fragment of a `template` element (its only child).
     func templateContents(of template: Node) -> Node { document.firstChild(template) }

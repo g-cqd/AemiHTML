@@ -153,7 +153,7 @@ public enum HTMLExtractor {
     }
 
     static func equals(_ bytes: ArraySlice<UInt8>, _ word: String) -> Bool {
-        HTMLTreeBuilder.equalsIgnoringCase(bytes, word)
+        HTMLBuilderRules.equalsIgnoringCase(bytes, word)
     }
 
     /// A simple selector: `tag`, `.class` or `#id`.

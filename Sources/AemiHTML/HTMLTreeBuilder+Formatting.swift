@@ -99,10 +99,15 @@ extension HTMLTreeBuilder {
             let entry = formatting[formattingPosition]
             let formattingElement = entry.node
             guard let formattingStackIndex = stackIndex(of: formattingElement) else {
+                parseError(.misnestedFormattingElement)
                 formatting.remove(at: formattingPosition)
                 return
             }
-            guard hasInScope(formattingElement) else { return }
+            guard hasInScope(formattingElement) else {
+                parseError(.misnestedFormattingElement)
+                return
+            }
+            if collectsErrors, currentNode != formattingElement { parseError(.misnestedFormattingElement) }
             var furthest: Int?
             var scanStack = formattingStackIndex + 1
             while scanStack < stack.count {

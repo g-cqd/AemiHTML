@@ -12,6 +12,7 @@ extension HTMLTreeBuilder {
             case .character:
                 insertCharacters(token.text)
             case .endOfFile:
+                parseError(.unexpectedEndOfFile)
                 pop()
                 mode = originalMode
                 return .reprocess
@@ -37,7 +38,7 @@ extension HTMLTreeBuilder {
                 insertComment(token.text)
             case .processingInstruction:
                 insertProcessingInstruction(token)
-            case .doctype: break
+            case .doctype: parseError(.unexpectedDoctype)
             case .startTag: return inTableStartTag(&token)
             case .endTag: return inTableEndTag(&token)
             case .endOfFile: return inBody(&token)
@@ -47,6 +48,7 @@ extension HTMLTreeBuilder {
     }
 
     mutating func inTableAnythingElse(_ token: inout BuilderToken) -> Disposition {
+        if token.kind == .character { characterErrors(.fosterParenting, token) } else { parseError(.fosterParenting) }
         fosterParenting = true
         let result = inBody(&token)
         fosterParenting = false
@@ -83,6 +85,7 @@ extension HTMLTreeBuilder {
                 mode = .inTableBody
                 return .reprocess
             case .table:
+                parseError(.nestedElement)
                 guard hasInScope(.table, .table) else { return .consumed }
                 popUntilHTML(.table)
                 resetInsertionMode()
@@ -92,10 +95,12 @@ extension HTMLTreeBuilder {
                 guard let type = tokenAttribute(token, "type"), Self.equalsIgnoringCase(type, "hidden") else {
                     return inTableAnythingElse(&token)
                 }
+                parseError(.unexpectedStartTag)
                 insertHTMLElement(token)
                 popJustInserted()
                 acknowledge(&token)
             case .form:
+                parseError(.unexpectedStartTag)
                 if !formPointer.isNone, !parsingTemplateContents { return .consumed }
                 let node = insertHTMLElement(token)
                 if !parsingTemplateContents { formPointer = node }
@@ -108,10 +113,14 @@ extension HTMLTreeBuilder {
     private mutating func inTableEndTag(_ token: inout BuilderToken) -> Disposition {
         switch token.name {
             case .table:
-                guard hasInScope(.table, .table) else { return .consumed }
+                guard hasInScope(.table, .table) else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
                 popUntilHTML(.table)
                 resetInsertionMode()
-            case .body, .caption, .col, .colgroup, .html, .tbody, .td, .tfoot, .th, .thead, .tr: break
+            case .body, .caption, .col, .colgroup, .html, .tbody, .td, .tfoot, .th, .thead, .tr:
+                parseError(.unexpectedEndTag)
             case .template: return inHead(&token)
             default: return inTableAnythingElse(&token)
         }
@@ -123,7 +132,7 @@ extension HTMLTreeBuilder {
     mutating func inTableText(_ token: inout BuilderToken) -> Disposition {
         if token.kind == .character {
             switch token.characterClass {
-                case .null: break
+                case .null: characterErrors(.unexpectedNullCharacter, token)
                 case .whitespace: pendingTableText.append(token.text)
                 case .other:
                     pendingTableText.append(token.text)
@@ -153,18 +162,25 @@ extension HTMLTreeBuilder {
     mutating func inCaption(_ token: inout BuilderToken) -> Disposition {
         switch (token.kind, token.name) {
             case (.endTag, .caption):
-                guard hasInScope(.caption, .table) else { return .consumed }
+                guard hasInScope(.caption, .table) else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
                 closeCaption()
                 return .consumed
             case (.startTag, .caption), (.startTag, .col), (.startTag, .colgroup), (.startTag, .tbody),
                 (.startTag, .td), (.startTag, .tfoot),
                 (.startTag, .th), (.startTag, .thead), (.startTag, .tr), (.endTag, .table):
-                guard hasInScope(.caption, .table) else { return .consumed }
+                guard hasInScope(.caption, .table) else {
+                    tokenError(token)
+                    return .consumed
+                }
                 closeCaption()
                 return .reprocess
             case (.endTag, .body), (.endTag, .col), (.endTag, .colgroup), (.endTag, .html), (.endTag, .tbody),
                 (.endTag, .td), (.endTag, .tfoot),
                 (.endTag, .th), (.endTag, .thead), (.endTag, .tr):
+                parseError(.unexpectedEndTag)
                 return .consumed
             default: return inBody(&token)
         }
@@ -172,6 +188,7 @@ extension HTMLTreeBuilder {
 
     private mutating func closeCaption() {
         generateImpliedEndTags()
+        expectCurrent(.caption)
         popUntilHTML(.caption)
         clearFormattingToMarker()
         mode = .inTable
@@ -187,21 +204,27 @@ extension HTMLTreeBuilder {
                 insertComment(token.text)
             case .processingInstruction:
                 insertProcessingInstruction(token)
-            case .doctype: break
+            case .doctype: parseError(.unexpectedDoctype)
             case .startTag where token.name == .html: return inBody(&token)
             case .startTag where token.name == .col:
                 insertHTMLElement(token)
                 popJustInserted()
                 acknowledge(&token)
             case .endTag where token.name == .colgroup:
-                guard isHTML(currentNode, .colgroup) else { return .consumed }
+                guard isHTML(currentNode, .colgroup) else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
                 pop()
                 mode = .inTable
-            case .endTag where token.name == .col: break
+            case .endTag where token.name == .col: parseError(.unexpectedEndTag)
             case .startTag where token.name == .template, .endTag where token.name == .template: return inHead(&token)
             case .endOfFile: return inBody(&token)
             default:
-                guard isHTML(currentNode, .colgroup) else { return .consumed }
+                guard isHTML(currentNode, .colgroup) else {
+                    tokenError(token)
+                    return .consumed
+                }
                 pop()
                 mode = .inTable
                 return .reprocess
@@ -219,12 +242,16 @@ extension HTMLTreeBuilder {
                 insertHTMLElement(token)
                 mode = .inRow
             case (.startTag, .th), (.startTag, .td):
+                parseError(.unexpectedStartTag)
                 clearStackBack(toContext: stoppers)
                 insertFakeElement(.tr, "tr")
                 mode = .inRow
                 return .reprocess
             case (.endTag, .tbody), (.endTag, .tfoot), (.endTag, .thead):
-                guard hasInScope(token.name, .table) else { return .consumed }
+                guard hasInScope(token.name, .table) else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
                 clearStackBack(toContext: stoppers)
                 pop()
                 mode = .inTable
@@ -232,6 +259,7 @@ extension HTMLTreeBuilder {
                 (.startTag, .tfoot), (.startTag, .thead),
                 (.endTag, .table):
                 guard hasInScope(.table, where: { $0 == .tbody || $0 == .thead || $0 == .tfoot }) else {
+                    tokenError(token)
                     return .consumed
                 }
                 clearStackBack(toContext: stoppers)
@@ -241,6 +269,7 @@ extension HTMLTreeBuilder {
             case (.endTag, .body), (.endTag, .caption), (.endTag, .col), (.endTag, .colgroup), (.endTag, .html),
                 (.endTag, .td), (.endTag, .th),
                 (.endTag, .tr):
+                parseError(.unexpectedEndTag)
                 return .consumed
             default: return inTable(&token)
         }
@@ -257,26 +286,36 @@ extension HTMLTreeBuilder {
                 mode = .inCell
                 insertMarker()
             case (.endTag, .tr):
-                guard hasInScope(.tr, .table) else { return .consumed }
+                guard hasInScope(.tr, .table) else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
                 clearStackBack(toContext: .tableRowContext)
                 pop()
                 mode = .inTableBody
             case (.startTag, .caption), (.startTag, .col), (.startTag, .colgroup), (.startTag, .tbody),
                 (.startTag, .tfoot), (.startTag, .thead),
                 (.startTag, .tr), (.endTag, .table):
-                guard hasInScope(.tr, .table) else { return .consumed }
+                guard hasInScope(.tr, .table) else {
+                    tokenError(token)
+                    return .consumed
+                }
                 clearStackBack(toContext: .tableRowContext)
                 pop()
                 mode = .inTableBody
                 return .reprocess
             case (.endTag, .tbody), (.endTag, .tfoot), (.endTag, .thead):
-                guard hasInScope(token.name, .table), hasInScope(.tr, .table) else { return .consumed }
+                guard hasInScope(token.name, .table), hasInScope(.tr, .table) else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
                 clearStackBack(toContext: .tableRowContext)
                 pop()
                 mode = .inTableBody
                 return .reprocess
             case (.endTag, .body), (.endTag, .caption), (.endTag, .col), (.endTag, .colgroup), (.endTag, .html),
                 (.endTag, .td), (.endTag, .th):
+                parseError(.unexpectedEndTag)
                 return .consumed
             default: return inTable(&token)
         }
@@ -288,17 +327,27 @@ extension HTMLTreeBuilder {
     mutating func inCell(_ token: inout BuilderToken) -> Disposition {
         switch (token.kind, token.name) {
             case (.endTag, .td), (.endTag, .th):
-                guard hasInScope(token.name, .table) else { return .consumed }
+                guard hasInScope(token.name, .table) else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
                 closeCell()
             case (.startTag, .caption), (.startTag, .col), (.startTag, .colgroup), (.startTag, .tbody),
                 (.startTag, .td), (.startTag, .tfoot),
                 (.startTag, .th), (.startTag, .thead), (.startTag, .tr):
-                guard hasInScope(.td, .table) || hasInScope(.th, .table) else { return .consumed }
+                guard hasInScope(.td, .table) || hasInScope(.th, .table) else {
+                    parseError(.unexpectedStartTag)
+                    return .consumed
+                }
                 closeCell()
                 return .reprocess
-            case (.endTag, .body), (.endTag, .caption), (.endTag, .col), (.endTag, .colgroup), (.endTag, .html): break
+            case (.endTag, .body), (.endTag, .caption), (.endTag, .col), (.endTag, .colgroup), (.endTag, .html):
+                parseError(.unexpectedEndTag)
             case (.endTag, .table), (.endTag, .tbody), (.endTag, .tfoot), (.endTag, .thead), (.endTag, .tr):
-                guard hasInScope(token.name, .table) else { return .consumed }
+                guard hasInScope(token.name, .table) else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
                 closeCell()
                 return .reprocess
             default: return inBody(&token)
@@ -308,6 +357,7 @@ extension HTMLTreeBuilder {
 
     private mutating func closeCell() {
         generateImpliedEndTags()
+        expectCurrentCell()
         popUntilHTML(in: .cells)
         clearFormattingToMarker()
         mode = .inRow
@@ -331,9 +381,11 @@ extension HTMLTreeBuilder {
                 return .reprocess
             case .endTag:
                 if token.name == .template { return inHead(&token) }
+                parseError(.unexpectedEndTag)
                 return .consumed
             case .endOfFile:
                 guard hasTemplateOnStack else { return .consumed }
+                parseError(.unexpectedEndOfFile)
                 popUntilHTML(.template)
                 clearFormattingToMarker()
                 templateModes.removeLast()

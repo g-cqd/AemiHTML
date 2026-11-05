@@ -9,22 +9,55 @@ internal import AemiKernel
 /// let document = parser.finish()
 /// ```
 public struct HTMLStreamParser {
-    private var builder: HTMLTreeBuilder
-    private var preparer = HTMLChunkPreparer(dropsByteOrderMark: true)
+    /// The engine, one of two kinds (a builder that keeps parse errors and one that does not). It is held as an existential, which stores a struct this size in a box of its own that the parser alone owns, so each call works on it in place: copying it out and back on every piece would make the input's buffer shared, and the append would copy it.
+    private var engine: any StreamingEngine
+
     /// The number of bytes fed so far.
-    public private(set) var bytesFed = 0
+    public var bytesFed: Int { engine.bytesFed }
+
+    public init(options: HTMLParser.Options = HTMLParser.Options()) {
+        engine =
+            options.collectsErrors
+            ? StreamEngine<LoudErrors>(options) : StreamEngine<QuietErrors>(options)
+    }
+
+    /// Gives the parser the next piece of the document (UTF-8; for other encodings, decode first).
+    public mutating func feed(_ chunk: [UInt8]) { engine.feed(chunk) }
+
+    /// The document, once the last piece has been fed. The parser cannot be used afterwards.
+    public mutating func finish() -> HTMLDocument { engine.finish() }
+}
+
+protocol StreamingEngine {
+    var bytesFed: Int { get }
+    mutating func feed(_ chunk: [UInt8])
+    mutating func finish() -> HTMLDocument
+}
+
+struct StreamEngine<Reporting: TreeErrorReporting>: StreamingEngine {
+    private var builder: HTMLTreeBuilder<Reporting>
+    private var preparer = HTMLChunkPreparer(dropsByteOrderMark: true)
+    private(set) var bytesFed = 0
     /// The bytes the tokenizer has read, and how many were there when a step was last undone: a token that does not complete is not tried again until half as much again has come.
     private var triedAt = 0
     private var retryAfter = 0
     private var isFinished = false
     private var scannedErrors = 0
 
-    public init(options: HTMLParser.Options = HTMLParser.Options()) {
-        builder = HTMLParser.makeStreamingBuilder(options)
+    init(_ options: HTMLParser.Options) {
+        var tokenizerOptions = HTMLTokenizer.Options()
+        tokenizerOptions.switchesContentModel = false
+        tokenizerOptions.collectsErrors = options.collectsErrors
+        var tokenizer = HTMLTokenizer(input: [], options: tokenizerOptions, out: HTMLTokens(source: []))
+        tokenizer.isFinal = false
+        builder = HTMLTreeBuilder<Reporting>(
+            tokenizer: tokenizer,
+            scripting: options.scripting,
+            maxDepth: options.maxDepth
+        )
     }
 
-    /// Gives the parser the next piece of the document (UTF-8; for other encodings, decode first).
-    public mutating func feed(_ chunk: [UInt8]) {
+    mutating func feed(_ chunk: [UInt8]) {
         guard !isFinished, !chunk.isEmpty else { return }
         bytesFed += chunk.count
         append(preparer.prepare(chunk, final: false))
@@ -33,8 +66,7 @@ public struct HTMLStreamParser {
         run(final: false)
     }
 
-    /// The document, once the last piece has been fed. The parser cannot be used afterwards.
-    public mutating func finish() -> HTMLDocument {
+    mutating func finish() -> HTMLDocument {
         if !isFinished {
             append(preparer.prepare([], final: true))
             isFinished = true
@@ -63,19 +95,6 @@ public struct HTMLStreamParser {
             builder.tokenizer.scanInputErrors(from: scannedErrors)
             scannedErrors = buffer.count
         }
-    }
-}
-
-extension HTMLParser {
-    static func makeStreamingBuilder(_ options: Options) -> HTMLTreeBuilder {
-        var tokenizerOptions = HTMLTokenizer.Options()
-        tokenizerOptions.switchesContentModel = false
-        tokenizerOptions.collectsErrors = options.collectsErrors
-        var tokenizer = HTMLTokenizer(input: [], options: tokenizerOptions, out: HTMLTokens(source: []))
-        tokenizer.isFinal = false
-        var builder = HTMLTreeBuilder(tokenizer: tokenizer, scripting: options.scripting, maxDepth: options.maxDepth)
-        builder.collectsErrors = options.collectsErrors
-        return builder
     }
 }
 

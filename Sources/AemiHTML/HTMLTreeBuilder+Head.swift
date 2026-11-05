@@ -17,6 +17,7 @@ extension HTMLTreeBuilder {
                 mode = .beforeHTML
                 return .consumed
             default:
+                parseError(.missingDoctype)
                 document.quirksMode = .quirks
                 mode = .beforeHTML
                 return .reprocess
@@ -34,6 +35,9 @@ extension HTMLTreeBuilder {
         let publicID = flags.contains(.hasPublicIdentifier) ? range(token.index + 2) : 0
         let systemID = flags.contains(.hasSystemIdentifier) ? range(token.index + 3) : 0
         let node = document.makeNode(.doctype, nameRange: name, dataRange: publicID)
+        if collectsErrors, !isConformingDoctype(flags: flags, name: name, systemID: systemID) {
+            parseError(.nonConformingDoctype)
+        }
         document.systemIdentifier = systemID
         if document.doctype.isNone {
             document.append(node, to: document.root)
@@ -50,6 +54,16 @@ extension HTMLTreeBuilder {
             hasPublic: flags.contains(.hasPublicIdentifier),
             hasSystem: flags.contains(.hasSystemIdentifier)
         )
+    }
+
+    /// 13.2.6.4.1: a doctype is conforming when its name is `html`, it has no public identifier, and its system identifier is missing or `about:legacy-compat`.
+    private mutating func isConformingDoctype(flags: HTMLDoctypeFlags, name: UInt64, systemID: UInt64) -> Bool {
+        guard flags.contains(.hasName), tokenizer.out.bytes(range: name).elementsEqual("html".utf8) else {
+            return false
+        }
+        if flags.contains(.hasPublicIdentifier) { return false }
+        return !flags.contains(.hasSystemIdentifier)
+            || tokenizer.out.bytes(range: systemID).elementsEqual("about:legacy-compat".utf8)
     }
 
     static func lower(_ byte: UInt8) -> UInt8 { byte >= 0x41 && byte <= 0x5A ? byte + 0x20 : byte }
@@ -82,7 +96,9 @@ extension HTMLTreeBuilder {
 
     mutating func beforeHTML(_ token: inout BuilderToken) -> Disposition {
         switch token.kind {
-            case .doctype: return .consumed
+            case .doctype:
+                parseError(.unexpectedDoctype)
+                return .consumed
             case .comment:
                 insertComment(token.text, at: Place(parent: document.root, before: .none))
                 return .consumed
@@ -97,6 +113,7 @@ extension HTMLTreeBuilder {
                 mode = .beforeHead
                 return .consumed
             case .endTag where token.name != .head && token.name != .body && token.name != .html && token.name != .br:
+                parseError(.unexpectedEndTag)
                 return .consumed
             default:
                 let node = document.makeNode(
@@ -123,13 +140,16 @@ extension HTMLTreeBuilder {
             case .processingInstruction:
                 insertProcessingInstruction(token)
                 return .consumed
-            case .doctype: return .consumed
+            case .doctype:
+                parseError(.unexpectedDoctype)
+                return .consumed
             case .startTag where token.name == .html: return inBody(&token)
             case .startTag where token.name == .head:
                 headPointer = insertHTMLElement(token)
                 mode = .inHead
                 return .consumed
             case .endTag where token.name != .head && token.name != .body && token.name != .html && token.name != .br:
+                parseError(.unexpectedEndTag)
                 return .consumed
             default:
                 headPointer = insertFakeElement(.head, "head")
@@ -151,7 +171,9 @@ extension HTMLTreeBuilder {
             case .processingInstruction:
                 insertProcessingInstruction(token)
                 return .consumed
-            case .doctype: return .consumed
+            case .doctype:
+                parseError(.unexpectedDoctype)
+                return .consumed
             case .startTag: return inHeadStartTag(&token)
             case .endTag: return inHeadEndTag(&token)
             default:
@@ -186,7 +208,7 @@ extension HTMLTreeBuilder {
                 mode = .inTemplate
                 templateModes.append(.inTemplate)
                 insertHTMLElement(token)
-            case .head: break
+            case .head: parseError(.unexpectedStartTag)
             default:
                 pop()
                 mode = .afterHead
@@ -201,8 +223,12 @@ extension HTMLTreeBuilder {
                 pop()
                 mode = .afterHead
             case .template:
-                guard hasTemplateOnStack else { return .consumed }
+                guard hasTemplateOnStack else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
                 generateAllImpliedEndTagsThoroughly()
+                expectCurrent(.template)
                 popUntilHTML(.template)
                 clearFormattingToMarker()
                 templateModes.removeLast()
@@ -211,7 +237,7 @@ extension HTMLTreeBuilder {
                 pop()
                 mode = .afterHead
                 return .reprocess
-            default: break
+            default: parseError(.unexpectedEndTag)
         }
         return .consumed
     }
@@ -220,7 +246,9 @@ extension HTMLTreeBuilder {
 
     mutating func inHeadNoscript(_ token: inout BuilderToken) -> Disposition {
         switch token.kind {
-            case .doctype: return .consumed
+            case .doctype:
+                parseError(.unexpectedDoctype)
+                return .consumed
             case .startTag where token.name == .html: return inBody(&token)
             case .endTag where token.name == .noscript:
                 pop()
@@ -230,9 +258,14 @@ extension HTMLTreeBuilder {
                 return inHead(&token)
             case .startTag where [.basefont, .bgsound, .link, .meta, .noframes, .style].contains(token.name):
                 return inHead(&token)
-            case .endTag where token.name != .br: return .consumed
-            case .startTag where token.name == .head || token.name == .noscript: return .consumed
+            case .endTag where token.name != .br:
+                parseError(.unexpectedEndTag)
+                return .consumed
+            case .startTag where token.name == .head || token.name == .noscript:
+                parseError(.unexpectedStartTag)
+                return .consumed
             default:
+                tokenError(token, onlyFirst: true)
                 pop()
                 mode = .inHead
                 return .reprocess
@@ -252,13 +285,17 @@ extension HTMLTreeBuilder {
             case .processingInstruction:
                 insertProcessingInstruction(token)
                 return .consumed
-            case .doctype: return .consumed
+            case .doctype:
+                parseError(.unexpectedDoctype)
+                return .consumed
             case .startTag: return afterHeadStartTag(&token)
             case .endTag:
                 switch token.name {
                     case .template: return inHead(&token)
                     case .body, .html, .br: break
-                    default: return .consumed
+                    default:
+                        parseError(.unexpectedEndTag)
+                        return .consumed
                 }
             default: break
         }
@@ -279,10 +316,11 @@ extension HTMLTreeBuilder {
                 insertHTMLElement(token)
                 mode = .inFrameset
             case .base, .basefont, .bgsound, .link, .meta, .noframes, .script, .style, .template, .title:
+                parseError(.unexpectedStartTag)
                 push(headPointer)
                 _ = inHead(&token)
                 removeFromStack(headPointer)
-            case .head: break
+            case .head: parseError(.unexpectedStartTag)
             default:
                 insertFakeElement(.body, "body")
                 framesetOK = true

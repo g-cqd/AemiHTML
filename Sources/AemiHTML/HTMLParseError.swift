@@ -40,6 +40,8 @@ public enum HTMLParseError: String, Sendable, CaseIterable {
     case missingWhitespaceBetweenDoctypePublicAndSystemIdentifiers =
         "missing-whitespace-between-doctype-public-and-system-identifiers"
     case nestedComment = "nested-comment"
+    /// Found by the tree builder, not the tokenizer: a self-closing flag on a start tag that is not void and not foreign, which nothing acknowledged.
+    case nonVoidHtmlElementStartTagWithTrailingSolidus = "non-void-html-element-start-tag-with-trailing-solidus"
     case noncharacterCharacterReference = "noncharacter-character-reference"
     case noncharacterInInputStream = "noncharacter-in-input-stream"
     case nullCharacterReference = "null-character-reference"

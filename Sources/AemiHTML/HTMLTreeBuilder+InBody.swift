@@ -7,7 +7,7 @@ extension HTMLTreeBuilder {
         switch token.kind {
             case .character:
                 switch token.characterClass {
-                    case .null: break
+                    case .null: characterErrors(.unexpectedNullCharacter, token)
                     case .whitespace:
                         reconstructFormatting()
                         insertCharacters(token.text)
@@ -18,11 +18,12 @@ extension HTMLTreeBuilder {
                 }
             case .comment: insertComment(token.text)
             case .processingInstruction: insertProcessingInstruction(token)
-            case .doctype: break
+            case .doctype: parseError(.unexpectedDoctype)
             case .startTag: return inBodyStartTag(&token)
             case .endTag: return inBodyEndTag(&token)
             case .endOfFile:
                 if !templateModes.isEmpty { return inTemplate(&token) }
+                if collectsErrors, hasNodeNotAllowedAtEnd() { parseError(.unexpectedEndOfFile) }
         }
         return .consumed
     }
@@ -44,6 +45,22 @@ extension HTMLTreeBuilder {
         }
     }
 
+    /// Whether the stack holds an element the end of the input (or `</body>`, `</html>`) may not leave open: anything but `dd dt li optgroup option p rb rp rt rtc tbody td tfoot th thead tr body html`.
+    mutating func hasNodeNotAllowedAtEnd() -> Bool {
+        for node in stack where !(isHTMLElement(node) && Self.mayStayOpen(name(of: node))) { return true }
+        return false
+    }
+
+    private static func mayStayOpen(_ name: HTMLName) -> Bool {
+        switch name {
+            case .dd, .dt, .li, .optgroup, .option, .p, .rb, .rp, .rt, .rtc, .tbody, .td, .tfoot, .th, .thead, .tr,
+                .body,
+                .html:
+                true
+            default: false
+        }
+    }
+
     private var hasParagraphInButtonScope: Bool { mutating get { hasInScope(.p, .button) } }
 
     private mutating func isFragmentSelect() -> Bool { !contextElement.isNone && isHTML(contextElement, .select) }
@@ -53,14 +70,17 @@ extension HTMLTreeBuilder {
     private mutating func inBodyStartTag(_ token: inout BuilderToken) -> Disposition {
         switch token.name {
             case .html:
+                parseError(.unexpectedStartTag)
                 if !hasTemplateOnStack, let root = stack.first { addMissingAttributes(to: root, from: token) }
             case .base, .basefont, .bgsound, .link, .meta, .noframes, .script, .style, .template, .title:
                 return inHead(&token)
             case .body:
+                parseError(.unexpectedStartTag)
                 guard stack.count > 1, isHTML(stack[1], .body), !hasTemplateOnStack else { return .consumed }
                 framesetOK = false
                 addMissingAttributes(to: stack[1], from: token)
             case .frameset:
+                parseError(.unexpectedStartTag)
                 guard stack.count > 1, isHTML(stack[1], .body), framesetOK else { return .consumed }
                 document.detach(stack[1])
                 stack.removeSubrange(1...)
@@ -73,7 +93,10 @@ extension HTMLTreeBuilder {
                 insertHTMLElement(token)
             case .h1, .h2, .h3, .h4, .h5, .h6:
                 if hasParagraphInButtonScope { closeP() }
-                if isHTMLElement(currentNode), Self.isHeading(name(of: currentNode)) { pop() }
+                if isHTMLElement(currentNode), Self.isHeading(name(of: currentNode)) {
+                    parseError(.nestedElement)
+                    pop()
+                }
                 insertHTMLElement(token)
             case .pre, .listing:
                 if hasParagraphInButtonScope { closeP() }
@@ -81,7 +104,10 @@ extension HTMLTreeBuilder {
                 skipNewline = true
                 framesetOK = false
             case .form:
-                if !formPointer.isNone, !parsingTemplateContents { return .consumed }
+                if !formPointer.isNone, !parsingTemplateContents {
+                    parseError(.nestedElement)
+                    return .consumed
+                }
                 if hasParagraphInButtonScope { closeP() }
                 let node = insertHTMLElement(token)
                 if !parsingTemplateContents { formPointer = node }
@@ -93,6 +119,7 @@ extension HTMLTreeBuilder {
                 tokenizer.switchTo(.plaintext)
             case .button:
                 if hasInScope(.button) {
+                    parseError(.nestedElement)
                     generateImpliedEndTags()
                     popUntilHTML(.button)
                 }
@@ -113,6 +140,7 @@ extension HTMLTreeBuilder {
             if isHTML(node, in: items) {
                 let found = name(of: node)
                 generateImpliedEndTags(except: found)
+                expectCurrent(found)
                 popUntilHTML(found)
                 break
             }
@@ -129,6 +157,7 @@ extension HTMLTreeBuilder {
                 if let position = formatting.lastIndex(where: { $0.isMarker }).map({ $0 + 1 }) ?? 0 as Int?,
                     let existing = formatting[position...].last(where: { !$0.isMarker && isHTML($0.node, .a) })
                 {
+                    parseError(.nestedElement)
                     adoptionAgency(.a, token: token)
                     if let at = formattingIndex(of: existing.node) { formatting.remove(at: at) }
                     removeFromStack(existing.node)
@@ -143,6 +172,7 @@ extension HTMLTreeBuilder {
             case .nobr:
                 reconstructFormatting()
                 if hasInScope(.nobr) {
+                    parseError(.nestedElement)
                     adoptionAgency(.nobr, token: token)
                     reconstructFormatting()
                 }
@@ -172,8 +202,14 @@ extension HTMLTreeBuilder {
                 acknowledge(&token)
                 framesetOK = false
             case .input:
-                if isFragmentSelect() { return .consumed }
-                if hasInScope(.select) { popUntilHTML(.select) }
+                if isFragmentSelect() {
+                    parseError(.unexpectedStartTag)
+                    return .consumed
+                }
+                if hasInScope(.select) {
+                    parseError(.unexpectedStartTag)
+                    popUntilHTML(.select)
+                }
                 reconstructFormatting()
                 insertHTMLElement(token)
                 popJustInserted()
@@ -188,12 +224,16 @@ extension HTMLTreeBuilder {
                 acknowledge(&token)
             case .hr:
                 if hasParagraphInButtonScope { closeP() }
-                if hasInScope(.select) { generateImpliedEndTags() }
+                if hasInScope(.select) {
+                    generateImpliedEndTags()
+                    if collectsErrors, hasInScope(.option) || hasInScope(.optgroup) { parseError(.unexpectedStartTag) }
+                }
                 insertHTMLElement(token)
                 popJustInserted()
                 acknowledge(&token)
                 framesetOK = false
             case .image:
+                parseError(.imageStartTag)
                 token.name = .img
                 nameOverride = (.img, "img")
                 return inBody(&token)
@@ -222,8 +262,12 @@ extension HTMLTreeBuilder {
             case .noembed: parseRawText(token, rcdata: false)
             case .noscript where scripting: parseRawText(token, rcdata: false)
             case .select:
-                if isFragmentSelect() { return .consumed }
+                if isFragmentSelect() {
+                    parseError(.unexpectedStartTag)
+                    return .consumed
+                }
                 if hasInScope(.select) {
+                    parseError(.nestedElement)
                     popUntilHTML(.select)
                     return .consumed
                 }
@@ -233,20 +277,30 @@ extension HTMLTreeBuilder {
             case .option:
                 if hasInScope(.select) {
                     generateImpliedEndTags(except: .optgroup)
+                    if collectsErrors, hasInScope(.option) { parseError(.unexpectedStartTag) }
                 } else if isHTML(currentNode, .option) {
                     pop()
                 }
                 reconstructFormatting()
                 insertHTMLElement(token)
             case .optgroup:
-                if hasInScope(.select) { generateImpliedEndTags() } else if isHTML(currentNode, .option) { pop() }
+                if hasInScope(.select) {
+                    generateImpliedEndTags()
+                    if collectsErrors, hasInScope(.option) || hasInScope(.optgroup) { parseError(.unexpectedStartTag) }
+                } else if isHTML(currentNode, .option) {
+                    pop()
+                }
                 reconstructFormatting()
                 insertHTMLElement(token)
             case .rb, .rtc:
                 if hasInScope(.ruby) { generateImpliedEndTags() }
+                expectCurrent(.ruby)
                 insertHTMLElement(token)
             case .rp, .rt:
                 if hasInScope(.ruby) { generateImpliedEndTags(except: .rtc) }
+                if collectsErrors, !isHTML(currentNode, .rtc), !isHTML(currentNode, .ruby) {
+                    parseError(.unclosedElement)
+                }
                 insertHTMLElement(token)
             case .math, .svg:
                 reconstructFormatting()
@@ -256,7 +310,8 @@ extension HTMLTreeBuilder {
                     popJustInserted()
                     acknowledge(&token)
                 }
-            case .caption, .col, .colgroup, .frame, .head, .tbody, .td, .tfoot, .th, .thead, .tr: break
+            case .caption, .col, .colgroup, .frame, .head, .tbody, .td, .tfoot, .th, .thead, .tr:
+                parseError(.unexpectedStartTag)
             default:
                 reconstructFormatting()
                 insertHTMLElement(token)
@@ -270,45 +325,49 @@ extension HTMLTreeBuilder {
         switch token.name {
             case .template: return inHead(&token)
             case .body:
-                guard hasInScope(.body) else { return .consumed }
+                guard hasInScope(.body) else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
+                if collectsErrors, hasNodeNotAllowedAtEnd() { parseError(.unclosedElement) }
                 mode = .afterBody
             case .html:
-                guard hasInScope(.body) else { return .consumed }
+                guard hasInScope(.body) else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
+                if collectsErrors, hasNodeNotAllowedAtEnd() { parseError(.unclosedElement) }
                 mode = .afterBody
                 return .reprocess
             case .address, .article, .aside, .blockquote, .button, .center, .details, .dialog, .dir, .div, .dl,
                 .fieldset, .figcaption, .figure, .footer,
                 .header, .hgroup, .listing, .main, .menu, .nav, .ol, .pre, .search, .section, .select, .summary, .ul:
-                let name = token.name
-                guard hasInScope(name) else { return .consumed }
-                generateImpliedEndTags()
-                popUntilHTML(name)
+                closeScoped(token.name)
             case .form: closeForm()
             case .p:
-                if !hasParagraphInButtonScope { insertFakeElement(.p, "p") }
+                if !hasParagraphInButtonScope {
+                    parseError(.unexpectedEndTag)
+                    insertFakeElement(.p, "p")
+                }
                 closeP()
             case .li:
-                guard hasInScope(.li, .listItem) else { return .consumed }
-                generateImpliedEndTags(except: .li)
-                popUntilHTML(.li)
+                closeScoped(.li, scope: .listItem, keeping: .li)
             case .dd, .dt:
-                let name = token.name
-                guard hasInScope(name) else { return .consumed }
-                generateImpliedEndTags(except: name)
-                popUntilHTML(name)
+                closeScoped(token.name, keeping: token.name)
             case .h1, .h2, .h3, .h4, .h5, .h6:
-                guard hasInScope(.regular, where: Self.isHeading) else { return .consumed }
+                guard hasInScope(.regular, where: Self.isHeading) else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
                 generateImpliedEndTags()
+                expectCurrent(token.name)
                 popUntilHeading()
             case .a, .b, .big, .code, .em, .font, .i, .nobr, .s, .small, .strike, .strong, .tt, .u:
                 adoptionAgency(token.name, token: token)
             case .applet, .marquee, .object:
-                let name = token.name
-                guard hasInScope(name) else { return .consumed }
-                generateImpliedEndTags()
-                popUntilHTML(name)
-                clearFormattingToMarker()
+                if closeScoped(token.name) { clearFormattingToMarker() }
             case .br:
+                parseError(.unexpectedEndTag)
                 reconstructFormatting()
                 insertFakeElement(.br, "br")
                 popJustInserted()
@@ -318,16 +377,39 @@ extension HTMLTreeBuilder {
         return .consumed
     }
 
+    /// The end tag of an element that must be in scope (13.2.6.4.7): without it the tag is a parse error and is ignored; with it, the implied end tags (`keeping` the one that is not implied here) are generated, an element left open is an error, and the stack is popped through the element. Whether the element was in scope.
+    @discardableResult
+    private mutating func closeScoped(_ name: HTMLName, scope: Scope = .regular, keeping kept: HTMLName = .unknown)
+        -> Bool
+    {
+        guard hasInScope(name, scope) else {
+            parseError(.unexpectedEndTag)
+            return false
+        }
+        generateImpliedEndTags(except: kept)
+        expectCurrent(name)
+        popUntilHTML(name)
+        return true
+    }
+
     private mutating func closeForm() {
         if !parsingTemplateContents {
             let node = formPointer
             formPointer = .none
-            guard !node.isNone, hasInScope(node) else { return }
+            guard !node.isNone, hasInScope(node) else {
+                parseError(.unexpectedEndTag)
+                return
+            }
             generateImpliedEndTags()
+            if collectsErrors, currentNode != node { parseError(.unclosedElement) }
             removeFromStack(node)
         } else {
-            guard hasInScope(.form) else { return }
+            guard hasInScope(.form) else {
+                parseError(.unexpectedEndTag)
+                return
+            }
             generateImpliedEndTags()
+            expectCurrent(.form)
             popUntilHTML(.form)
         }
     }
@@ -342,10 +424,14 @@ extension HTMLTreeBuilder {
                 token.name != .unknown || nameBytes(of: node).elementsEqual(bytes)
             {
                 generateImpliedEndTags(except: token.name == .unknown ? .unknown : token.name)
+                if collectsErrors, stack.count - 1 != index { parseError(.unclosedElement) }
                 while stack.count > index { pop() }
                 return
             }
-            if isSpecial(node) { return }
+            if isSpecial(node) {
+                parseError(.unexpectedEndTag)
+                return
+            }
             index -= 1
         }
     }

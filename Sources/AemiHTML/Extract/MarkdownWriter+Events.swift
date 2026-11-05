@@ -159,7 +159,7 @@ extension MarkdownWriter {
 
     private mutating func writeCheckbox(_ node: HTMLDocument.Node) {
         guard !prefixes.isEmpty, let type = document.attribute("type", of: node),
-            type.map(HTMLTreeBuilder.lower).elementsEqual("checkbox".utf8)
+            type.map(HTMLBuilderRules.lower).elementsEqual("checkbox".utf8)
         else { return }
         writeRaw((document.attribute("checked", of: node) != nil ? "[x] " : "[ ] ").utf8)
         lineHasContent = false

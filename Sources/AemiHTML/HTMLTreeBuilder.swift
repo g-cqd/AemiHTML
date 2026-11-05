@@ -34,15 +34,38 @@ enum InsertionMode: UInt8 {
 
 /// The tree-construction stage (13.2.6): a stack of open elements, a list of active formatting elements and the insertion modes, on explicit arrays, driving the tokenizer between tokens. Every algorithm of the
 /// standard that loops (the adoption agency, reconstruction, scope checks) is a loop here too; nothing is recursive, and the depth of the tree is bounded (`maxDepth`).
-struct HTMLTreeBuilder {
+/// One entry of the list of active formatting elements: an element and the tape index of the start tag it was made for, or a marker. (Outside the builder, so that it does not depend on the builder's generic parameter.)
+struct HTMLFormattingEntry {
+    var node: HTMLDocument.Node
+    var tokenIndex: Int
+    var isMarker: Bool { node.isNone }
+}
+
+/// Where a node is inserted: under `parent`, before `before` (none: last).
+struct HTMLInsertionPlace {
+    var parent: HTMLDocument.Node
+    var before: HTMLDocument.Node
+}
+
+/// Whether a builder reports parse errors, as a type: the builder is generic over it, so the one that does not report is compiled without any of the checks. (As a runtime flag the checks cost 5.7% of the instructions of a parse, spread over the hundred places
+/// that may report, though a page reaches only a handful of them: the same code with every call stubbed out was exactly as fast as before they were added.)
+protocol TreeErrorReporting {
+    static var collects: Bool { get }
+}
+
+/// The builder that does not keep parse errors: the default, and as fast as one with no error reporting in it.
+enum QuietErrors: TreeErrorReporting { static var collects: Bool { false } }
+
+/// The builder that keeps them (`HTMLParser.Options.collectsErrors`).
+enum LoudErrors: TreeErrorReporting { static var collects: Bool { true } }
+
+/// The builder for the helpers that do not depend on whether errors are kept (byte comparisons the extractors share).
+typealias HTMLBuilderRules = HTMLTreeBuilder<QuietErrors>
+
+struct HTMLTreeBuilder<Reporting: TreeErrorReporting> {
     typealias Node = HTMLDocument.Node
 
-    /// One entry of the list of active formatting elements: an element and the tape index of the start tag it was made for, or a marker.
-    struct FormattingEntry {
-        var node: Node
-        var tokenIndex: Int
-        var isMarker: Bool { node.isNone }
-    }
+    typealias FormattingEntry = HTMLFormattingEntry
 
     var tokenizer: HTMLTokenizer
     var document: HTMLDocument
@@ -70,7 +93,12 @@ struct HTMLTreeBuilder {
     var htmlIntegrationAnnotations: Set<Int32> = []
     /// Set when a `selectedcontent` element was made: the document is given its copies of the selected option at the end.
     var sawSelectedContent = false
-    var collectsErrors = false
+    /// Whether this builder keeps parse errors; a constant of its type.
+    var collectsErrors: Bool { Reporting.collects }
+    /// Where in the source the token being processed starts, for the errors it causes (-1: not in the source).
+    var errorOffset = -1
+    /// The spec-coded errors only tree construction can see (an unacknowledged self-closing flag), kept apart from the tokenizer's list, which the streaming tokenizer may cut back.
+    var codedErrors: [HTMLTokens.Error] = []
     /// The first encoding a `meta` in the head declared (13.2.6.4.4: "change the encoding").
     var declaredEncoding: HTMLEncoding?
     var cursor = 0

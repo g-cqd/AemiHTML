@@ -24,7 +24,7 @@ extension HTMLDocument {
 
     private func attributeIs(_ node: Node, _ name: String, _ value: String) -> Bool {
         guard let found = attribute(name, of: node) else { return false }
-        return found.count == value.utf8.count && zip(found, value.utf8).allSatisfy { HTMLTreeBuilder.lower($0) == $1 }
+        return found.count == value.utf8.count && zip(found, value.utf8).allSatisfy { HTMLBuilderRules.lower($0) == $1 }
     }
 
     /// Class names that mark chrome, matched as whole words: MediaWiki's edit links and navigation boxes, sidebars, breadcrumbs, cookie banners and advertisements.
@@ -43,7 +43,7 @@ extension HTMLDocument {
                 if check() { return true }
                 word.removeAll(keepingCapacity: true)
             } else {
-                word.append(HTMLTreeBuilder.lower(byte))
+                word.append(HTMLBuilderRules.lower(byte))
             }
         }
         return check()
@@ -68,7 +68,7 @@ extension HTMLDocument {
             default: break
         }
         if let role = attribute("role", of: node) {
-            let lowered = String(decoding: role.map(HTMLTreeBuilder.lower), as: UTF8.self)
+            let lowered = String(decoding: role.map(HTMLBuilderRules.lower), as: UTF8.self)
             switch lowered {
                 case "navigation", "complementary", "search": return true
                 case "banner", "contentinfo": if !hasAncestor(node, in: NameSet.contentContainers) { return true }
@@ -79,7 +79,7 @@ extension HTMLDocument {
         guard hidden else { return false }
         if attribute("hidden", of: node) != nil || attributeIs(node, "aria-hidden", "true") { return true }
         if let style = attribute("style", of: node) {
-            let squeezed = style.filter { $0 != 0x20 && $0 != 0x09 && $0 != 0x0A }.map(HTMLTreeBuilder.lower)
+            let squeezed = style.filter { $0 != 0x20 && $0 != 0x09 && $0 != 0x0A }.map(HTMLBuilderRules.lower)
             let text = String(decoding: squeezed, as: UTF8.self)
             if text.contains("display:none") || text.contains("visibility:hidden") { return true }
         }

@@ -10,12 +10,13 @@ extension HTMLTreeBuilder {
                 insertComment(token.text, at: Place(parent: stack.first ?? document.root, before: .none))
             case .processingInstruction:
                 insertProcessingInstruction(token, at: Place(parent: stack.first ?? document.root, before: .none))
-            case .doctype: break
+            case .doctype: parseError(.unexpectedDoctype)
             case .startTag where token.name == .html: return inBody(&token)
             case .endTag where token.name == .html:
-                if contextElement.isNone { mode = .afterAfterBody }
+                if contextElement.isNone { mode = .afterAfterBody } else { parseError(.unexpectedEndTag) }
             case .endOfFile: break
             default:
+                tokenError(token, onlyFirst: true)
                 mode = .inBody
                 return .reprocess
         }
@@ -29,10 +30,14 @@ extension HTMLTreeBuilder {
             case .character where token.characterClass == .whitespace: insertCharacters(token.text)
             case .comment: insertComment(token.text)
             case .processingInstruction: insertProcessingInstruction(token)
+            case .doctype: parseError(.unexpectedDoctype)
             case .startTag where token.name == .html: return inBody(&token)
             case .startTag where token.name == .frameset: insertHTMLElement(token)
             case .endTag where token.name == .frameset:
-                guard stack.count > 1 else { return .consumed }
+                guard stack.count > 1 else {
+                    parseError(.unexpectedEndTag)
+                    return .consumed
+                }
                 pop()
                 if contextElement.isNone, !isHTML(currentNode, .frameset) { mode = .afterFrameset }
             case .startTag where token.name == .frame:
@@ -40,7 +45,9 @@ extension HTMLTreeBuilder {
                 popJustInserted()
                 acknowledge(&token)
             case .startTag where token.name == .noframes: return inHead(&token)
-            default: break
+            case .endOfFile:
+                if collectsErrors, stack.count > 1 { parseError(.unexpectedEndOfFile) }
+            default: tokenError(token)
         }
         return .consumed
     }
@@ -55,7 +62,9 @@ extension HTMLTreeBuilder {
             case .startTag where token.name == .html: return inBody(&token)
             case .endTag where token.name == .html: mode = .afterAfterFrameset
             case .startTag where token.name == .noframes: return inHead(&token)
-            default: break
+            case .doctype: parseError(.unexpectedDoctype)
+            case .endOfFile: break
+            default: tokenError(token)
         }
         return .consumed
     }
@@ -72,6 +81,7 @@ extension HTMLTreeBuilder {
             case .startTag where token.name == .html: return inBody(&token)
             case .endOfFile: break
             default:
+                tokenError(token, onlyFirst: true)
                 mode = .inBody
                 return .reprocess
         }
@@ -89,7 +99,8 @@ extension HTMLTreeBuilder {
             case .character where token.characterClass == .whitespace: return inBody(&token)
             case .startTag where token.name == .html: return inBody(&token)
             case .startTag where token.name == .noframes: return inHead(&token)
-            default: break
+            case .endOfFile: break
+            default: tokenError(token)
         }
         return .consumed
     }

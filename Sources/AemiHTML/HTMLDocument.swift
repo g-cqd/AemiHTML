@@ -72,8 +72,10 @@ public struct HTMLDocument: Sendable {
     /// The system identifier of the doctype, if the document has one.
     var systemIdentifier: UInt64 = 0
     public internal(set) var doctype = Node.none
-    /// The parse errors of the tokenizer, when they were asked for (the tree builder's are not reported).
+    /// The parse errors of the tokenizer, when they were asked for (`treeErrors` has the tree builder's).
     public internal(set) var errors: [HTMLTokens.Error] = []
+    /// The parse errors of the tree builder, when they were asked for (`HTMLParser.Options.collectsErrors`), in the order they were found.
+    public internal(set) var treeErrors: [TreeError] = []
     /// The encoding the bytes were decoded with (`HTMLParser.parse(encoded:)`); UTF-8 for a document parsed from UTF-8 bytes.
     public internal(set) var encoding = HTMLEncoding.utf8
     /// The encoding the first `meta` that declared one named, after the standard's mapping (UTF-16 to UTF-8, x-user-defined to windows-1252); what makes a parse start again when the encoding was only a guess.

@@ -1,0 +1,13 @@
+[package]
+name = "compare-html-rust"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+html5ever = "0.35"
+libc = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

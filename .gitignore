@@ -9,3 +9,5 @@ DerivedData/
 *.profdata
 # TLC state directories, should a model be run by hand beside the specifications
 docs/formal/states/
+Benchmarks/Compare/**/.build/
+Benchmarks/Compare/rust/target/

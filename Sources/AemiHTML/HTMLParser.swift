@@ -66,7 +66,7 @@ public enum HTMLParser {
         tokenizerOptions.initialState = state
         tokenizerOptions.switchesContentModel = false
         tokenizerOptions.collectsErrors = options.collectsErrors
-        let bytes = HTMLTokenizer.prepared(input)
+        let bytes = HTMLTokenizer.prepared(input, dropsByteOrderMark: true)
         var out = HTMLTokens(source: bytes)
         out.tape.reserveCapacity(bytes.count / 12 + 16)
         var tokenizer = HTMLTokenizer(input: bytes, options: tokenizerOptions, out: out)

@@ -67,6 +67,60 @@ func measureParse() {
         "{\"engine\":\"aemihtml-parse\",\"what\":\"dom\",\"pages\":\(pages.count),\"bytes\":\(total),\"seconds\":\(best),\"mbps\":\(Double(total) / best / 1e6),\"tokens\":\(counts.tokens),\"text_bytes\":\(counts.text)}"
     )
 }
+func dumpTokens() {
+    func escape(_ text: String) -> String {
+        text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
+    }
+    func string(_ bytes: ArraySlice<UInt8>) -> String { String(decoding: bytes, as: UTF8.self) }
+    let names = ((try? FileManager.default.contentsOfDirectory(atPath: arguments[1])) ?? []).sorted()
+    for (page, name) in zip(pages, names) {
+        var lines: [String] = []
+        var pending = ""
+        func flush() {
+            if !pending.isEmpty { lines.append("C:" + escape(pending)) }
+            pending = ""
+        }
+        var options = HTMLTokenizer.Options()
+        options.switchesContentModel = true
+        for token in HTMLTokenizer.tokenize(page, options: options).tokens {
+            switch token.kind {
+                case .text: pending += string(token.text)
+                case .comment:
+                    flush()
+                    lines.append("#:" + escape(string(token.text)))
+                case .startTag, .endTag:
+                    flush()
+                    let isStart = token.kind == .startTag
+                    let attributes = token.attributes.map { "\(string($0.name))=\(escape(string($0.value)))" }
+                        .joined(separator: "\u{1}")
+                    lines.append(
+                        "\(isStart ? "S" : "E"):\(string(token.name)):\(attributes):\(isStart && token.isSelfClosing ? "/" : "")"
+                    )
+                case .doctype:
+                    flush()
+                    lines.append(
+                        "D:\(string(token.name)):\(string(token.publicIdentifier)):\(string(token.systemIdentifier))"
+                    )
+                case .processingInstruction:
+                    flush()
+                    lines.append("?:\(string(token.name)):\(escape(string(token.data)))")
+            }
+        }
+        flush()
+        try? (lines.joined(separator: "\n") + "\n")
+            .write(
+                toFile: "\(ProcessInfo.processInfo.environment["AEMIHTML_DUMP_DIR"] ?? "/tmp")/\(name).aemi.txt",
+                atomically: true,
+                encoding: .utf8
+            )
+    }
+}
+if arguments.contains("--dump") {
+    dumpTokens()
+    exit(0)
+}
 if arguments.contains("--parse") {
     measureParse()
     exit(0)

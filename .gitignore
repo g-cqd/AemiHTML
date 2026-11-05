@@ -1,4 +1,4 @@
-.build/
+.build
 .swiftpm/
 *.xcodeproj
 *.xcworkspace
@@ -9,5 +9,7 @@ DerivedData/
 *.profdata
 # TLC state directories, should a model be run by hand beside the specifications
 docs/formal/states/
-Benchmarks/Compare/**/.build/
-Benchmarks/Compare/rust/target/
+Benchmarks/Compare/**/.build
+# Cargo's output and npm's installs, wherever a benchmark has them (build output lives in ~/Library/Caches/g-cqd-build, behind a link)
+target
+node_modules

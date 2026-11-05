@@ -6,9 +6,9 @@ import json, os, subprocess
 
 here = os.path.dirname(os.path.abspath(__file__))
 tables = json.load(open(os.path.join(here, "foreign-names.json")))
-html = """a address applet area article aside b base basefont bgsound big blockquote body br button caption center code col colgroup datalist dd details dialog dir div dl dt em embed
-fieldset figcaption figure font footer form frame frameset h1 h2 h3 h4 h5 h6 head header hgroup hr html i iframe image img input keygen label li link listing main marquee math menu meta nav nobr noembed
-noframes noscript object ol optgroup option output p param plaintext pre rb rp rt rtc ruby s script search section select selectedcontent small source span strike strong style sub summary sup svg table
+html = """a address applet area article aside b base basefont bgsound big blockquote body br button canvas caption center cite code col colgroup datalist dd del details dfn dialog dir div dl dt em embed
+fieldset figcaption figure font footer form frame frameset h1 h2 h3 h4 h5 h6 head header hgroup hr html i iframe image img input ins kbd keygen label li link listing main marquee math menu meta nav nobr noembed
+noframes noscript object ol optgroup option output p param plaintext pre rb rp rt rtc ruby s samp script search section select selectedcontent small source span strike strong style sub summary sup svg table
 tbody td template textarea tfoot th thead title tr track tt u ul var wbr xmp""".split()
 foreign = ["annotation-xml", "desc", "foreignObject", "malignmark", "mglyph", "mi", "mn", "mo", "ms", "mtext"]
 names = sorted(set(html) | set(foreign))

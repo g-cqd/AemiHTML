@@ -87,6 +87,7 @@ extension HTMLTokenizer {
         let kind = tagIsEnd ? HTMLTokens.Tag.endTag : HTMLTokens.Tag.startTag
         out.tape[tagSlot] = TapeSlot.make(tag: kind, aux: aux, low: out.tape.count)
         state = .data
+        batchReady = true
         guard !tagIsEnd else { return }
         lastStartTag = Array(out.bytes(ofSlot: tagSlot + 1))
         if options.switchesContentModel { state = Self.contentModel(after: lastStartTag) }

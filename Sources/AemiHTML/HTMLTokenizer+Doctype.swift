@@ -20,6 +20,7 @@ extension HTMLTokenizer {
             low: out.tape.count
         )
         state = .data
+        batchReady = true
     }
 
     /// Sets the name (0), public identifier (1) or system identifier (2) from `dataStart ..< end`.

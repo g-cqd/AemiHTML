@@ -52,6 +52,25 @@ public struct HTMLTokens: Sendable {
         return aux & 1 == 0 ? source[low ..< low + length] : scratch[low ..< low + length]
     }
 
+    /// The bytes of a slot-shaped range: `aux` is the length shifted left one and the scratch flag, `low` the offset.
+    func bytes(range value: UInt64) -> ArraySlice<UInt8> {
+        let aux = Int(TapeSlot.aux(value))
+        let low = TapeSlot.low(value)
+        let length = aux >> 1
+        return aux & 1 == 0 ? source[low ..< low + length] : scratch[low ..< low + length]
+    }
+
+    /// A range over bytes the builder adds to the scratch.
+    mutating func intern(_ bytes: some Sequence<UInt8>) -> UInt64 {
+        let start = scratch.count
+        scratch.append(contentsOf: bytes)
+        return TapeSlot.make(
+            tag: 0,
+            aux: UInt64(Swift.min(scratch.count - start, HTMLTokens.maxLength) << 1 | 1),
+            low: start
+        )
+    }
+
     /// Whether the tape has no token.
     public var isEmpty: Bool { tape.isEmpty }
 

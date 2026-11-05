@@ -1,20 +1,42 @@
 # AemiHTML
 
-An HTML tokenizer on [Aemi](https://github.com/Aemi-Studio/aemi)'s kernels: the WHATWG HTML Standard's tokenization stage over UTF-8 bytes, in one pass, with no recursion, no failure (any bytes give tokens) and
-no object per token. Promoted from the archived ADHTML (ask roadmap 0139, reopened 2026-11-05); its source could not be recovered, so this is a new build to that roadmap, not a port.
+The WHATWG HTML Standard on [Aemi](https://github.com/Aemi-Studio/aemi)'s kernels: a tokenizer, a tree builder, a stream parser, the Encoding Standard's decoders, and extractors that turn a page into Markdown or text. One pass over bytes, no recursion, no failure
+(any bytes give a document), no object per token or node. Rebuilt from the archived ADHTML (ask roadmap 0139; ADHTML's source was found on another machine, and `docs/adr/0001` says what was kept and what changed).
 
 ```swift
 import AemiHTML
 
-let tokens = HTMLTokenizer.tokenize(Array("<p class=a>Hi &amp; bye".utf8))
-for token in tokens.tokens {
-    switch token.kind {
-        case .startTag: print("<\(String(decoding: token.name, as: UTF8.self))>", token.attributes.count)
-        case .text: print(String(decoding: token.text, as: UTF8.self))
-        default: break
-    }
+// A document, from UTF-8 bytes.
+let document = HTMLParser.parse(Array("<p>One<p>Two".utf8))
+for node in document.descendants(of: document.root) where document.kind(node) == .element {
+    print(String(decoding: document.name(node), as: UTF8.self))
 }
+
+// Bytes in any encoding, as a browser would find it (a BOM, the HTTP charset, a <meta>, else UTF-8 or windows-1252).
+let page = HTMLParser.parse(encoded: bytes, transportEncoding: "iso-8859-2")
+print(page.encoding.name)
+
+// A document that arrives in pieces: the same tree, however it is cut.
+var parser = HTMLStreamParser()
+for chunk in chunks { parser.feed(chunk) }
+let streamed = parser.finish()
+
+// The content of a page, as Markdown.
+let extracted = HTMLExtractor.extract(encoded: bytes)
+print(extracted.title ?? "", extracted.sections.map(\.content))
 ```
+
+## What it is
+
+| | |
+|---|---|
+| `HTMLTokenizer` | The tokenization stage (13.2.5, as the standard reads in 2026, processing instructions included) on a flat tape. |
+| `HTMLParser` | Tokenizer and tree builder (13.2.6): all insertion modes, the adoption agency, foster parenting, templates, foreign content, quirks, fragments, `selectedcontent`. Into an arena `HTMLDocument`. |
+| `HTMLStreamParser` | The same, fed a piece at a time. The tree is the whole document's at every cut (tested on every cut of every html5lib tokenizer and tree case, on real pages, and on random markup). |
+| `HTMLEncodingSniffer`, `HTMLDecoder` | The Encoding Standard: labels, BOM sniffing, the prescan of the first 1024 bytes, the restart when a later `meta` names another encoding; decoders for UTF-16, the 28 single-byte encodings, Shift_JIS, EUC-JP, ISO-2022-JP, GBK, gb18030, Big5 and EUC-KR (generated from the standard's own tables). |
+| `HTMLExtractor` | Title, description, content container, sections, Markdown or plain text; chrome and hidden content dropped; nested lists, tables and code languages kept. |
+
+Not done: the tree builder's own parse errors (the tokenizer's are reported), streaming of fragment parsing. `docs/design/remaining-work.md` has the status, the measurements and the designs.
 
 ## How it is built
 

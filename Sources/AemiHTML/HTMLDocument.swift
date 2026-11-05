@@ -66,8 +66,8 @@ public struct HTMLDocument: Sendable {
         var namespace: UInt8
     }
 
-    var records: ContiguousArray<Record> = []
-    var attributeRecords: ContiguousArray<AttributeRecord> = []
+    var records = Arena<Record>()
+    var attributeRecords = Arena<AttributeRecord>()
 
     /// The system identifier of the doctype, if the document has one.
     var systemIdentifier: UInt64 = 0
@@ -218,17 +218,17 @@ public struct HTMLDocument: Sendable {
 
     /// Puts `child` last under `parent`.
     mutating func append(_ child: Node, to parent: Node) {
-        records.withUnsafeMutableBufferPointer { unsafe Self.link(child, in: parent, before: .none, $0) }
+        unsafe records.withUnsafeMutableBufferPointer { unsafe Self.link(child, in: parent, before: .none, $0) }
     }
 
     /// Puts `child` under `parent` before `reference` (last, if `reference` is none).
     mutating func insert(_ child: Node, in parent: Node, before reference: Node) {
-        records.withUnsafeMutableBufferPointer { unsafe Self.link(child, in: parent, before: reference, $0) }
+        unsafe records.withUnsafeMutableBufferPointer { unsafe Self.link(child, in: parent, before: reference, $0) }
     }
 
     /// Takes `node` out of its parent.
     mutating func detach(_ node: Node) {
-        records.withUnsafeMutableBufferPointer { unsafe Self.unlink(node, $0) }
+        unsafe records.withUnsafeMutableBufferPointer { unsafe Self.unlink(node, $0) }
     }
 
     // The links are changed through one pointer: an array checks, at every element it writes, that it is the only owner of its storage.

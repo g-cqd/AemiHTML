@@ -33,7 +33,9 @@ by_length = {}
 for name in names:
     by_length.setdefault(len(name), []).append(name)
 out += ["    /// The name for `bytes` (lower case, as the tokenizer makes names; `foreignObject` and the like are looked up by their lower-case form and adjusted by the caller). A switch over the length and the bytes packed in an integer: no hashing.",
-        "    static func lookup(_ bytes: ArraySlice<UInt8>) -> HTMLName {", "        guard bytes.count <= 8 else { return bytes.count <= 15 ? lookupLong(bytes) : .unknown }", "        var key: UInt64 = 0", "        for byte in bytes { key = key << 8 | UInt64(byte) }", "        switch bytes.count {"]
+        "    static func lookup(_ bytes: ArraySlice<UInt8>) -> HTMLName {", "        guard bytes.count <= 8 else { return bytes.count <= 15 ? lookupLong(bytes) : .unknown }", "        var key: UInt64 = 0", "        for byte in bytes { key = key << 8 | UInt64(byte) }", "        return lookup(key: key, count: bytes.count)", "    }", "",
+        "    /// The name for the `count` bytes (at most 8) packed big-endian in `key`: what the builder asks without making a slice of the bytes.",
+        "    static func lookup(key: UInt64, count: Int) -> HTMLName {", "        switch count {"]
 for length in sorted(n for n in by_length if n <= 8):
     out.append(f"        case {length}:")
     out.append("            switch key {")

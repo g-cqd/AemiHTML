@@ -13,7 +13,7 @@ internal import AemiKernel
 public struct HTMLTokens: Sendable {
     public internal(set) var source: [UInt8]
     var scratch: [UInt8] = []
-    var tape: [UInt64] = []
+    var tape = Arena<UInt64>()
     public internal(set) var errors: [Error] = []
 
     public struct Error: Sendable, Equatable {
@@ -50,6 +50,24 @@ public struct HTMLTokens: Sendable {
         let low = TapeSlot.low(value)
         let length = aux >> 1
         return aux & 1 == 0 ? source[low ..< low + length] : scratch[low ..< low + length]
+    }
+
+    /// The element name the text-shaped slot spells, found without making a slice of the bytes (a slice holds its array, and holding and letting go of it showed in the profile).
+    func name(ofSlot slot: Int) -> HTMLName {
+        let value = tape[slot]
+        let aux = Int(TapeSlot.aux(value))
+        let low = TapeSlot.low(value)
+        let length = aux >> 1
+        guard length <= 8 else { return HTMLName.lookup(bytes(ofSlot: slot)) }
+        func key(_ array: [UInt8]) -> UInt64 {
+            precondition(low >= 0 && low + length <= array.count, "a name lies inside its buffer")
+            return array.withUnsafeBufferPointer { buffer in
+                var key: UInt64 = 0
+                for offset in 0 ..< length { key = key << 8 | UInt64(unsafe buffer[low + offset]) }
+                return key
+            }
+        }
+        return HTMLName.lookup(key: aux & 1 == 0 ? key(source) : key(scratch), count: length)
     }
 
     /// The bytes of a slot-shaped range: `aux` is the length shifted left one and the scratch flag, `low` the offset.

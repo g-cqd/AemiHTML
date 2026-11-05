@@ -27,30 +27,31 @@ for token in tokens.tokens {
 
 ## Speed
 
-`Benchmarks/Compare` runs 15 real pages (the HTML Standard, Wikipedia, MDN, GitHub, news sites; 19.9 MB, downloaded by `Scripts/fetch-pages.sh`, never committed) through AemiHTML and other parsers, one thread, best of nine rounds of CPU
-time, Apple M3. The DOM table below was taken at a load average of 3.5, the tokenizer table at a load of 160 and more, so it gives ratios only:
+`Benchmarks/Compare/run.py` runs 15 real pages (the HTML Standard, Wikipedia, MDN, GitHub, news sites; 19.9 MB, downloaded by `Scripts/fetch-pages.sh`, never committed) through AemiHTML and other parsers, one thread, best of nine rounds of CPU time,
+Apple M3, at a load average of 5 (the machine is shared; the last run of each table is the one shown):
 
-| Tokenizing only | Relative speed | Tokens |
+| Tokenizing only | MB/s | Tokens |
 |---|---:|---:|
-| **AemiHTML**, errors not collected | **1.8 to 2.0 ×** | 1,195,936 |
-| **AemiHTML**, errors collected | 1.3 to 1.5 × | 1,195,936 |
-| html5ever 0.35 (Rust; it reports errors, as tokens) | 1 × | 1,280,646 |
-| Python `html.parser` (not the HTML5 algorithm) | about 0.05 × | 1,195,936 |
-
-Both tokenizers read the same text (5,751,516 bytes of it) and, driven the same way (the sink switches the tokenizer into RCDATA, RAWTEXT, script data and PLAINTEXT after the start tags that need it), produce the same tokens: `Benchmarks/Compare/differential.sh` writes each page's tokens as lines and
-diffs them, and **all 15 pages give 0 differing lines**. (An earlier table here compared against a sink that did not switch, which made html5ever tokenize scripts as markup and look 2 × slower than it is; it is withdrawn.) The absolute numbers of the last run, at a load average of 160 to 230 and so
-only fit for ratios, were 127 to 187 MB/s for AemiHTML and 63 to 105 for html5ever; they need a quiet machine.
+| **AemiHTML**, errors not collected | **247** | 1,195,936 |
+| **AemiHTML**, errors collected | 164 | 1,195,936 |
+| html5ever 0.35 (Rust; it reports errors, as tokens) | 125 | 1,280,646 |
+| Python `html.parser` (not the HTML5 algorithm) | 15 | 1,195,936 |
 
 | Parsing to a DOM | MB/s | Nodes |
 |---|---:|---:|
-| **AemiHTML** (the arena `HTMLDocument`) | **157** | 823,420 |
-| Lexbor (C, via selectolax) | 100 | 822,696 |
-| html5ever with `markup5ever_rcdom` | 82 | 821,916 |
-| parse5 7 (JavaScript) | 19 | 822,585 |
+| **AemiHTML** (the arena `HTMLDocument`) | **150** | 823,420 |
+| html5ever with `markup5ever_rcdom` | 81 | 821,916 |
+| Lexbor (C, via selectolax) | 76 | 822,696 |
+| parse5 7 (JavaScript) | 17 | 822,585 |
 
-The node counts agree to within a fifth of a percent across four independent implementations, which is a check on the tree builder as much as on the benchmark (the differences are whitespace and doctype handling in each library's own DOM).
-What it does not say: the DOMs are not the same objects (AemiHTML's text is ranges of the source and its nodes are records in one array; html5ever's are reference-counted nodes with tendrils; Lexbor's are C structs read through Python), the benchmark walks each DOM once to
-count nodes and text, and the pages are as served on the day. A run at a load average of 13 gave AemiHTML 65 MB/s (parse) with the others' ordering unchanged: read ratios, not decimals.
+**These numbers are comparable because the outputs are equal**, which is checked, not assumed:
+- `Benchmarks/Compare/differential.sh` writes each page's tokens as lines, AemiHTML's and html5ever's (whose sink switches the tokenizer into RCDATA, RAWTEXT, script data and PLAINTEXT after the start tags that need it, as the standard requires of a sink), and diffs them: **0 differing lines on all 15 pages**.
+- `Benchmarks/Compare/tree-differential.sh` writes the trees AemiHTML, html5ever and parse5 make (scripting off) and diffs them. On the 15 pages AemiHTML's tree equals html5ever's line for line (about 800,000 nodes). On 100,000 inputs made by mutating html5lib's tree-construction cases (seeded), the three agree on 98.3%; of the rest, 1,597 are
+  `select` (html5ever and parse5 still follow the "in select" insertion modes that the standard dropped for customizable select; AemiHTML follows the standard and html5lib's current tests), 43 are AemiHTML and html5ever against parse5, 26 AemiHTML and parse5 against html5ever, and **none are AemiHTML against the other two** outside `select`. The cases looked at by hand
+  (a stray `</mi>` in a MathML text integration point; `svg` after an unclosed `<a>`, which must reconstruct the formatting element; an LF that a character reference makes after `<pre>`) agree with the standard's text.
+
+What the speed figures do not say: the DOMs are not the same objects (AemiHTML's text is ranges of the source and its nodes are records in one array; html5ever's are reference-counted nodes with tendrils; Lexbor's are C structs read through Python), the benchmark walks each DOM once to count nodes and text, the pages are as served on the day, and
+the tokens per page differ by what each library counts as a token. Read ratios, not decimals: a run at a load of 160 and more gave the same ordering and ratio (1.8 to 2.0 for tokenizing).
 
 Where it comes from (each measured, in this repository's history): the tokenizer allocates nothing per token and the tree builder nothing per node (`AllocationTests` counts, per construct, in release); a run of text is one slot whatever it decodes
 to; element names are a `switch` over integers; the document is one array of records, so adding a node is one append; and the scans for the next byte that matters are `AemiKernels`' SIMD search.

@@ -11,7 +11,7 @@ Written 2026-11-05 after the differential runs, and updated the same day. Each i
 | `selectedcontent`, ill-formed UTF-8, tree differential | Built earlier (see below). |
 | Tree-builder parse errors | **Built.** `HTMLTreeError` (15 classes), `HTMLDocument.treeErrors` with the offset of the token; one or more hand-written cases per class (92 cases); the count agrees with html5lib's in 1,590 of 1,600 cases (below). |
 | Performance candidates | **Not built**; a better way to measure them was found (below). |
-| Boilerplate by link density, preorder tape view, WPT tree files | Not started. |
+| Streaming of `parseFragment` | **Built** (`HTMLStreamParser(fragmentContext:)`; every cut of the 206 fragment cases equals the whole). WPT tree files: **built** (section 6). Boilerplate by link density, preorder tape view | Not started. |
 
 ### What was learned while building these
 

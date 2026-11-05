@@ -89,6 +89,84 @@ struct StreamingTreeTests {
     }
 }
 
+@Suite("Chunked input, fragments", .enabled(if: !Html5libTree.files.isEmpty, "run Scripts/fetch-wpt-tree.sh"))
+struct StreamingFragmentTests {
+    /// A stream for the context a case names (`"svg path"` is `path` in the SVG namespace), fed in pieces cut at `cuts`.
+    private func streamed(_ data: [UInt8], context: String, cuts: [Int], scripting: Bool) -> HTMLDocument {
+        var options = HTMLParser.Options()
+        options.scripting = scripting
+        let parts = context.split(separator: " ", maxSplits: 1).map(String.init)
+        var parser =
+            parts.count == 2 && (parts[0] == "svg" || parts[0] == "math")
+            ? HTMLStreamParser(
+                fragmentContext: parts[1],
+                namespace: parts[0] == "svg" ? .svg : .mathml,
+                options: options
+            )
+            : HTMLStreamParser(fragmentContext: context, options: options)
+        var start = 0
+        for cut in cuts + [data.count] where cut > start && cut <= data.count {
+            parser.feed(Array(data[start ..< cut]))
+            start = cut
+        }
+        return parser.finish()
+    }
+
+    @Test(arguments: Html5libTree.files)
+    func `every cut of every fragment case gives the tree of the whole`(file: String) {
+        let known = Html5libTree.knownDifferences
+        var failures: [String] = []
+        var runs = 0
+        for test in Html5libTree.cases(in: file) where known[test.id] == nil {
+            guard let context = test.fragment else { continue }
+            let data = Array(test.data.utf8)
+            for scripting in test.scripting.map({ [$0] }) ?? [false, true] {
+                var cutSets = (1 ..< Swift.max(1, data.count)).map { [$0] }
+                cutSets.append(Array(1 ..< Swift.max(1, data.count)))
+                for cuts in cutSets {
+                    runs += 1
+                    let got = Html5libTree.dump(
+                        streamed(data, context: context, cuts: cuts, scripting: scripting),
+                        fragment: true
+                    )
+                    if got != test.expected {
+                        failures.append(
+                            "\(test.id) [scripting \(scripting)] context \(context) cut \(cuts.prefix(3)) \(test.data.debugDescription)\n--- expected\n\(test.expected)\n--- got\n\(got)"
+                        )
+                        break
+                    }
+                }
+            }
+        }
+        #expect(
+            failures.isEmpty,
+            Comment(
+                rawValue: "\(failures.count) in \(file) (\(runs) runs)\n" + failures.prefix(3).joined(separator: "\n")
+            )
+        )
+    }
+
+    @Test func `the cases that are fragments are found`() {
+        let fragments = Html5libTree.files.reduce(0) {
+            $0 + Html5libTree.cases(in: $1).filter { $0.fragment != nil }.count
+        }
+        #expect(fragments > 150, "\(fragments) fragment cases")
+    }
+
+    @Test func `a fragment fed in pieces has the same root and errors as one parsed whole`() {
+        let html = "<p>a<b>b</p><table><td>x"
+        var options = HTMLParser.Options()
+        options.collectsErrors = true
+        let whole = HTMLParser.parseFragment(Array(html.utf8), context: "div", options: options)
+        var parser = HTMLStreamParser(fragmentContext: "div", options: options)
+        for byte in html.utf8 { parser.feed([byte]) }
+        let streamed = parser.finish()
+        #expect(Html5libTree.dump(streamed, fragment: true) == Html5libTree.dump(whole, fragment: true))
+        #expect(streamed.treeErrors == whole.treeErrors)
+        #expect(!streamed.fragmentRoot.isNone)
+    }
+}
+
 @Suite("Chunked input, pages and fuzz")
 struct StreamingPageTests {
     private func parsed(_ data: [UInt8], pieces: [[UInt8]], options: HTMLParser.Options = HTMLParser.Options())

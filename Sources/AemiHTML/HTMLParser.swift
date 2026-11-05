@@ -46,6 +46,26 @@ public enum HTMLParser {
         namespace: HTMLDocument.Namespace = .html,
         options: Options = Options()
     ) -> HTMLDocument {
+        let (name, state) = fragmentContext(context, namespace: namespace, options: options)
+        func build<Reporting: TreeErrorReporting>(_: Reporting.Type) -> HTMLDocument {
+            var builder = HTMLTreeBuilder<Reporting>(
+                tokenizer: makeTokenizer(input, options, state: state),
+                scripting: options.scripting,
+                maxDepth: options.maxDepth
+            )
+            builder.setUpFragment(context: context, name: name, namespace: namespace)
+            builder.run()
+            return builder.document
+        }
+        return options.collectsErrors ? build(LoudErrors.self) : build(QuietErrors.self)
+    }
+
+    /// The context element's name, and the state the tokenizer starts in for it (13.4: the content model the context element has).
+    static func fragmentContext(
+        _ context: String,
+        namespace: HTMLDocument.Namespace,
+        options: Options
+    ) -> (HTMLName, HTMLTokenizer.InitialState) {
         let name = HTMLName.lookup(ArraySlice(context.utf8.map { $0 >= 0x41 && $0 <= 0x5A ? $0 + 0x20 : $0 }))
         var state = HTMLTokenizer.InitialState.data
         if namespace == .html {
@@ -58,17 +78,7 @@ public enum HTMLParser {
                 default: break
             }
         }
-        func build<Reporting: TreeErrorReporting>(_: Reporting.Type) -> HTMLDocument {
-            var builder = HTMLTreeBuilder<Reporting>(
-                tokenizer: makeTokenizer(input, options, state: state),
-                scripting: options.scripting,
-                maxDepth: options.maxDepth
-            )
-            builder.setUpFragment(context: context, name: name, namespace: namespace)
-            builder.run()
-            return builder.document
-        }
-        return options.collectsErrors ? build(LoudErrors.self) : build(QuietErrors.self)
+        return (name, state)
     }
 
     private static func makeTokenizer(_ input: [UInt8], _ options: Options, state: HTMLTokenizer.InitialState)

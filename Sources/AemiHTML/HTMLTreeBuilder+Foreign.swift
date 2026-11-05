@@ -95,7 +95,7 @@ extension HTMLTreeBuilder {
         while index >= 0 {
             let node = stack[index]
             if index == 0 { return }
-            if nameBytes(of: node).map(Self.lower).elementsEqual(wanted) {
+            if Self.equalsLowered(nameBytes(of: node), wanted) {
                 while stack.count > index { pop() }
                 return
             }

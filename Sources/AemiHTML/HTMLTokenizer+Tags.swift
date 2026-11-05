@@ -10,7 +10,7 @@ extension HTMLTokenizer {
         append(tag: isEnd ? HTMLTokens.Tag.endTag : HTMLTokens.Tag.startTag, aux: 0, low: 0)
         append(tag: HTMLTokens.Tag.name, aux: 0, low: 0)
         attributeCount = 0
-        attributeNames.removeAll(keepingCapacity: true)
+        attributeHashes.removeAll(keepingCapacity: true)
         attributeIsDuplicate = false
     }
 
@@ -39,19 +39,28 @@ extension HTMLTokenizer {
         attributeNameStart = start
     }
 
+    private static func hash(_ bytes: ArraySlice<UInt8>) -> UInt64 {
+        var value: UInt64 = 0xCBF2_9CE4_8422_2325
+        for byte in bytes { value = (value ^ UInt64(byte)) &* 0x100_0000_01B3 }
+        return value
+    }
+
     mutating func finishAttributeName(_ from: Int, _ to: Int) {
         let slot = nameSlot(from, to)
-        let name = nameBytes(slot)
+        let name = out.bytes(range: TapeSlot.make(tag: 0, aux: UInt64(slot.aux), low: slot.low))
         var repeated = attributeCount >= HTMLTokens.maxAttributes
         if !repeated {
-            if attributeCount >= 8 {
-                if attributeNames.isEmpty {
+            // Up to eight attributes are compared one by one; more are looked up by hash and confirmed by comparison.
+            var candidates = attributeCount < 8
+            if !candidates {
+                if attributeHashes.isEmpty {
                     for number in 0 ..< attributeCount {
-                        attributeNames.insert(Array(out.bytes(ofSlot: tagSlot + 2 + number * 2)))
+                        attributeHashes.insert(Self.hash(out.bytes(ofSlot: tagSlot + 2 + number * 2)))
                     }
                 }
-                repeated = !attributeNames.insert(name).inserted
-            } else {
+                candidates = !attributeHashes.insert(Self.hash(name)).inserted
+            }
+            if candidates {
                 for number in 0 ..< attributeCount where out.bytes(ofSlot: tagSlot + 2 + number * 2).elementsEqual(name)
                 {
                     repeated = true
@@ -64,12 +73,6 @@ extension HTMLTokenizer {
         append(tag: HTMLTokens.Tag.value, aux: 0, low: 0)
         attributeIsDuplicate = repeated
         if !repeated { attributeCount += 1 }
-    }
-
-    private func nameBytes(_ slot: (aux: Int, low: Int)) -> [UInt8] {
-        let length = slot.aux >> 1
-        return slot.aux & 1 == 0
-            ? Array(out.source[slot.low ..< slot.low + length]) : Array(out.scratch[slot.low ..< slot.low + length])
     }
 
     mutating func setAttributeValue(aux: Int, low: Int) {
@@ -89,17 +92,18 @@ extension HTMLTokenizer {
         state = .data
         batchReady = true
         guard !tagIsEnd else { return }
-        lastStartTag = Array(out.bytes(ofSlot: tagSlot + 1))
-        if options.switchesContentModel { state = Self.contentModel(after: lastStartTag) }
+        let nameSlot = out.tape[tagSlot + 1]
+        lastStartTagRange = TapeSlot.make(tag: 0, aux: TapeSlot.aux(nameSlot), low: TapeSlot.low(nameSlot))
+        if options.switchesContentModel { state = Self.contentModel(after: out.bytes(range: lastStartTagRange)) }
     }
 
     /// The content model a start tag switches to (13.2.5.1 to 13.2.5.5, as a tree builder sets it).
-    static func contentModel(after name: [UInt8]) -> State {
-        switch String(decoding: name, as: UTF8.self) {
-            case "textarea", "title": .rcdata
-            case "style", "xmp", "iframe", "noembed", "noframes": .rawtext
-            case "script": .scriptData
-            case "plaintext": .plaintext
+    static func contentModel(after name: ArraySlice<UInt8>) -> State {
+        switch HTMLName.lookup(name) {
+            case .textarea, .title: .rcdata
+            case .style, .xmp, .iframe, .noembed, .noframes: .rawtext
+            case .script: .scriptData
+            case .plaintext: .plaintext
             default: .data
         }
     }

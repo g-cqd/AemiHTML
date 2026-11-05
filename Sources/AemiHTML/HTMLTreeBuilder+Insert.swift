@@ -46,17 +46,17 @@ extension HTMLTreeBuilder {
     mutating func createElement(tokenIndex: Int, space: HTMLDocument.Namespace, adjust: Adjust = .none) -> Node {
         let nameSlot = tokenizer.out.tape[tokenIndex + 1]
         var nameRange = TapeSlot.make(tag: 0, aux: TapeSlot.aux(nameSlot), low: TapeSlot.low(nameSlot))
-        var lower = tokenizer.out.bytes(range: nameRange)
-        var atom = HTMLName.lookup(lower)
+        var atom = HTMLName.lookup(tokenizer.out.bytes(range: nameRange))
+        // What the name becomes is decided first, from a slice of the bytes, and the scratch is written after the slice is gone: a slice kept across an append makes the append copy the whole scratch.
+        var spelling: String?
         if let replacement = nameOverride {
             nameOverride = nil
             atom = replacement.0
-            nameRange = tokenizer.out.intern(replacement.1.utf8)
-            lower = tokenizer.out.bytes(range: nameRange)
+            spelling = replacement.1
+        } else if adjust == .svg {
+            spelling = SVGAdjustments.tag(tokenizer.out.bytes(range: nameRange))
         }
-        if adjust == .svg, let fixed = SVGAdjustments.tags[String(decoding: lower, as: UTF8.self)] {
-            nameRange = tokenizer.out.intern(fixed.utf8)
-        }
+        if let spelling { nameRange = tokenizer.out.intern(utf8: spelling) }
         let node = document.makeNode(.element, name: atom, space: space, nameRange: nameRange)
         let count = Int(TapeSlot.aux(tokenizer.out.tape[tokenIndex]) & 0xFFF)
         for number in 0 ..< count {
@@ -67,14 +67,10 @@ extension HTMLTreeBuilder {
             let value = TapeSlot.make(tag: 0, aux: TapeSlot.aux(valueSlot), low: TapeSlot.low(valueSlot))
             var namespace: UInt8 = 0
             if adjust != .none {
-                let text = String(decoding: tokenizer.out.bytes(range: name), as: UTF8.self)
-                if adjust == .svg, let fixed = SVGAdjustments.attributes[text] {
-                    name = tokenizer.out.intern(fixed.utf8)
-                } else if adjust == .mathml, text == "definitionurl" {
-                    name = tokenizer.out.intern("definitionURL".utf8)
-                }
-                if let foreign = SVGAdjustments.foreign[text] {
-                    name = tokenizer.out.intern(foreign.local.utf8)
+                let (fixed, foreign) = adjustedAttribute(name, adjust)
+                if let fixed { name = tokenizer.out.intern(utf8: fixed) }
+                if let foreign {
+                    name = tokenizer.out.intern(utf8: foreign.local)
                     namespace = foreign.namespace
                 }
             }
@@ -85,6 +81,18 @@ extension HTMLTreeBuilder {
             document.append(contents, to: node)
         }
         return node
+    }
+
+    /// The name an attribute takes in foreign content (13.2.6.1: adjust MathML, SVG and foreign attributes), if it changes; no slice of the bytes outlives the call.
+    private func adjustedAttribute(_ name: UInt64, _ adjust: Adjust) -> (String?, (local: String, namespace: UInt8)?) {
+        let spelled = tokenizer.out.bytes(range: name)
+        var fixed: String?
+        if adjust == .svg {
+            fixed = SVGAdjustments.attribute(spelled)
+        } else if spelled.elementsEqual("definitionurl".utf8) {
+            fixed = "definitionURL"
+        }
+        return (fixed, SVGAdjustments.foreign(spelled))
     }
 
     /// Inserts `node` at the adjusted insertion location, unless that is a document that already has an element.
@@ -112,7 +120,7 @@ extension HTMLTreeBuilder {
         } else {
             lastInsertWasLeaf = true
         }
-        if space == .mathml, document.names[Int(node.raw)] == HTMLName.annotationXml.rawValue,
+        if space == .mathml, document.atom(node) == HTMLName.annotationXml.rawValue,
             let encoding = tokenAttribute(BuilderToken(kind: .startTag, index: tokenIndex), "encoding")
         {
             let lowered = encoding.map { $0 >= 0x41 && $0 <= 0x5A ? $0 + 0x20 : $0 }
@@ -140,7 +148,9 @@ extension HTMLTreeBuilder {
         let place = override ?? appropriatePlace()
         if place.parent == document.root { return }
         let previous = place.before.isNone ? document.lastChild(place.parent) : document.previousSibling(place.before)
-        if !previous.isNone, document.kind(previous) == .text {
+        if !previous.isNone, document.kind(previous) == .text,
+            length(document.dataRange(previous)) + length(range) <= HTMLTokens.maxLength
+        {
             appendText(range, to: previous)
         } else {
             let node = document.makeNode(.text, dataRange: range)
@@ -150,33 +160,35 @@ extension HTMLTreeBuilder {
 
     /// Joins `range` to the data of a text node: by extending it when the two touch in the same buffer, else by copying both to the end of the scratch.
     mutating func appendText(_ range: UInt64, to node: Node) {
-        let current = document.dataRanges[Int(node.raw)]
+        let current = document.dataRange(node)
         let aux = Int(TapeSlot.aux(current))
         let new = Int(TapeSlot.aux(range))
         let (length, newLength) = (aux >> 1, new >> 1)
         if aux & 1 == new & 1, TapeSlot.low(current) + length == TapeSlot.low(range),
             length + newLength <= HTMLTokens.maxLength
         {
-            document.dataRanges[Int(node.raw)] = TapeSlot.make(
-                tag: 0,
-                aux: UInt64((length + newLength) << 1 | (aux & 1)),
-                low: TapeSlot.low(current)
+            document.setDataRange(
+                node,
+                TapeSlot.make(tag: 0, aux: UInt64((length + newLength) << 1 | (aux & 1)), low: TapeSlot.low(current))
             )
             return
         }
         let start = tokenizer.out.scratch.count
         // A scratch range at the end of the scratch that this node already owns is extended in place.
         if aux & 1 == 1, TapeSlot.low(current) + length == start, length + newLength <= HTMLTokens.maxLength {
-            tokenizer.out.scratch.append(contentsOf: tokenizer.out.bytes(range: range))
-            document.dataRanges[Int(node.raw)] = TapeSlot.make(
-                tag: 0,
-                aux: UInt64((length + newLength) << 1 | 1),
-                low: TapeSlot.low(current)
+            tokenizer.out.appendCopy(of: range)
+            document.setDataRange(
+                node,
+                TapeSlot.make(tag: 0, aux: UInt64((length + newLength) << 1 | 1), low: TapeSlot.low(current))
             )
             return
         }
-        let joined = Array(tokenizer.out.bytes(range: current)) + Array(tokenizer.out.bytes(range: range))
-        document.dataRanges[Int(node.raw)] = tokenizer.out.intern(joined)
+        tokenizer.out.appendCopy(of: current)
+        tokenizer.out.appendCopy(of: range)
+        document.setDataRange(
+            node,
+            TapeSlot.make(tag: 0, aux: UInt64((length + newLength) << 1 | 1), low: start)
+        )
     }
 
     mutating func insertComment(_ range: UInt64, at place: Place? = nil) {

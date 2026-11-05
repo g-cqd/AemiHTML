@@ -1,4 +1,5 @@
 internal import AemiKernel
+internal import AemiKernels
 
 /// The HTML parser: the tokenizer (13.2.5) and the tree builder (13.2.6) of the WHATWG HTML Standard over UTF-8 bytes, into an arena `HTMLDocument`. No recursion anywhere; the depth of the tree is bounded.
 ///
@@ -66,8 +67,10 @@ public enum HTMLParser {
         tokenizerOptions.switchesContentModel = false
         tokenizerOptions.collectsErrors = options.collectsErrors
         var bytes = input.count > TapeSlot.maxLow ? Array(input.prefix(TapeSlot.maxLow)) : input
-        if bytes.contains(0x0D) { bytes = HTMLTokenizer.normalizedNewlines(bytes) }
-        var tokenizer = HTMLTokenizer(input: bytes, options: tokenizerOptions, out: HTMLTokens(source: bytes))
+        if AemiKernels.firstIndexOfByte(0x0D, in: bytes) != nil { bytes = HTMLTokenizer.normalizedNewlines(bytes) }
+        var out = HTMLTokens(source: bytes)
+        out.tape.reserveCapacity(bytes.count / 12 + 16)
+        var tokenizer = HTMLTokenizer(input: bytes, options: tokenizerOptions, out: out)
         if options.collectsErrors { tokenizer.scanInputErrors() }
         return tokenizer
     }
@@ -81,13 +84,13 @@ extension HTMLTreeBuilder {
             .element,
             name: name,
             space: namespace,
-            nameRange: tokenizer.out.intern(context.utf8)
+            nameRange: tokenizer.out.intern(utf8: context)
         )
         if name == .template, namespace == .html {
             document.append(document.makeNode(.templateContents), to: contextNode)
         }
         contextElement = contextNode
-        let root = document.makeNode(.element, name: .html, space: .html, nameRange: tokenizer.out.intern("html".utf8))
+        let root = document.makeNode(.element, name: .html, space: .html, nameRange: tokenizer.out.intern(utf8: "html"))
         document.append(root, to: document.root)
         document.fragmentRoot = root
         stack = [root]

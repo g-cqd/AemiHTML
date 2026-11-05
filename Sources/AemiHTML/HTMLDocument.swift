@@ -42,25 +42,32 @@ public struct HTMLDocument: Sendable {
     var scratch: [UInt8]
     public internal(set) var quirksMode = QuirksMode.noQuirks
 
-    var kinds: [UInt8] = []
-    var names: [UInt16] = []
-    var namespaces: [UInt8] = []
-    var parents: [Int32] = []
-    var firstChildren: [Int32] = []
-    var lastChildren: [Int32] = []
-    var nextSiblings: [Int32] = []
-    var previousSiblings: [Int32] = []
-    /// The name (element, doctype, processing instruction target) and the data (text, comment, processing instruction data, doctype public identifier), as slot-shaped ranges.
-    var nameRanges: [UInt64] = []
-    var dataRanges: [UInt64] = []
-    var firstAttributes: [Int32] = []
-    var lastAttributes: [Int32] = []
-    var attributeCounts: [UInt16] = []
-    // The attributes, linked per element so that they can be added after the element was made.
-    var attributeNames: [UInt64] = []
-    var attributeValues: [UInt64] = []
-    var attributeNamespaces: [UInt8] = []
-    var attributeNext: [Int32] = []
+    /// One node: its kind, namespace and element name, its place in the tree, the ranges of its name and data, and its attributes (a linked list in `attributes`).
+    struct Record {
+        var kind: UInt8
+        var namespace: UInt8
+        var name: UInt16
+        var attributeCount: UInt16 = 0
+        var parent: Int32 = -1
+        var firstChild: Int32 = -1
+        var lastChild: Int32 = -1
+        var nextSibling: Int32 = -1
+        var previousSibling: Int32 = -1
+        var firstAttribute: Int32 = -1
+        var lastAttribute: Int32 = -1
+        var nameRange: UInt64
+        var dataRange: UInt64
+    }
+
+    struct AttributeRecord {
+        var name: UInt64
+        var value: UInt64
+        var next: Int32 = -1
+        var namespace: UInt8
+    }
+
+    var records: ContiguousArray<Record> = []
+    var attributeRecords: ContiguousArray<AttributeRecord> = []
 
     /// The system identifier of the doctype, if the document has one.
     var systemIdentifier: UInt64 = 0
@@ -71,34 +78,36 @@ public struct HTMLDocument: Sendable {
     public internal(set) var fragmentRoot = Node.none
 
     public var root: Node { Node(raw: 0) }
-    public var nodeCount: Int { kinds.count }
+    public var nodeCount: Int { records.count }
 
     init(source: [UInt8], scratch: [UInt8]) {
         self.source = source
         self.scratch = scratch
+        // A page has a node for about every 24 bytes of markup.
+        records.reserveCapacity(source.count / 24 + 16)
         _ = makeNode(.document)
     }
 
     // MARK: Reading
 
-    public func kind(_ node: Node) -> Kind { Kind(rawValue: kinds[Int(node.raw)]) ?? .element }
-    public func parent(_ node: Node) -> Node { Node(raw: parents[Int(node.raw)]) }
-    public func firstChild(_ node: Node) -> Node { Node(raw: firstChildren[Int(node.raw)]) }
-    public func lastChild(_ node: Node) -> Node { Node(raw: lastChildren[Int(node.raw)]) }
-    public func nextSibling(_ node: Node) -> Node { Node(raw: nextSiblings[Int(node.raw)]) }
-    public func previousSibling(_ node: Node) -> Node { Node(raw: previousSiblings[Int(node.raw)]) }
-    public func namespace(_ node: Node) -> Namespace { Namespace(rawValue: namespaces[Int(node.raw)]) ?? .html }
+    public func kind(_ node: Node) -> Kind { Kind(rawValue: records[Int(node.raw)].kind) ?? .element }
+    public func parent(_ node: Node) -> Node { Node(raw: records[Int(node.raw)].parent) }
+    public func firstChild(_ node: Node) -> Node { Node(raw: records[Int(node.raw)].firstChild) }
+    public func lastChild(_ node: Node) -> Node { Node(raw: records[Int(node.raw)].lastChild) }
+    public func nextSibling(_ node: Node) -> Node { Node(raw: records[Int(node.raw)].nextSibling) }
+    public func previousSibling(_ node: Node) -> Node { Node(raw: records[Int(node.raw)].previousSibling) }
+    public func namespace(_ node: Node) -> Namespace { Namespace(rawValue: records[Int(node.raw)].namespace) ?? .html }
 
     /// The element's local name (`foreignObject` keeps its case), a doctype's name, or a processing instruction's target.
-    public func name(_ node: Node) -> ArraySlice<UInt8> { bytes(nameRanges[Int(node.raw)]) }
+    public func name(_ node: Node) -> ArraySlice<UInt8> { bytes(records[Int(node.raw)].nameRange) }
 
     /// The data of a text, comment or processing instruction node.
-    public func data(_ node: Node) -> ArraySlice<UInt8> { bytes(dataRanges[Int(node.raw)]) }
+    public func data(_ node: Node) -> ArraySlice<UInt8> { bytes(records[Int(node.raw)].dataRange) }
 
     public var publicIdentifier: ArraySlice<UInt8> { doctype.isNone ? [] : data(doctype) }
     public var documentSystemIdentifier: ArraySlice<UInt8> { bytes(systemIdentifier) }
 
-    func elementName(_ node: Node) -> HTMLName { HTMLName(rawValue: names[Int(node.raw)]) ?? .unknown }
+    func elementName(_ node: Node) -> HTMLName { HTMLName(rawValue: records[Int(node.raw)].name) ?? .unknown }
 
     public func isElement(_ node: Node, _ name: String, in space: Namespace = .html) -> Bool {
         kind(node) == .element && namespace(node) == space && self.name(node).elementsEqual(name.utf8)
@@ -113,30 +122,22 @@ public struct HTMLDocument: Sendable {
 
     public func attributes(of node: Node) -> [Attribute] {
         var found: [Attribute] = []
-        var index = firstAttributes[Int(node.raw)]
+        var index = records[Int(node.raw)].firstAttribute
         while index >= 0 {
-            found.append(
-                Attribute(
-                    name: bytes(attributeNames[Int(index)]),
-                    value: bytes(attributeValues[Int(index)]),
-                    namespace: attributeNamespaces[Int(index)]
-                )
-            )
-            index = attributeNext[Int(index)]
+            let record = attributeRecords[Int(index)]
+            found.append(Attribute(name: bytes(record.name), value: bytes(record.value), namespace: record.namespace))
+            index = record.next
         }
         return found
     }
 
     /// The value of the attribute `name` (no namespace), if the element has it.
     public func attribute(_ name: String, of node: Node) -> ArraySlice<UInt8>? {
-        var index = firstAttributes[Int(node.raw)]
+        var index = records[Int(node.raw)].firstAttribute
         while index >= 0 {
-            if attributeNamespaces[Int(index)] == 0,
-                bytes(attributeNames[Int(index)]).elementsEqual(name.utf8)
-            {
-                return bytes(attributeValues[Int(index)])
-            }
-            index = attributeNext[Int(index)]
+            let record = attributeRecords[Int(index)]
+            if record.namespace == 0, bytes(record.name).elementsEqual(name.utf8) { return bytes(record.value) }
+            index = record.next
         }
         return nil
     }
@@ -190,80 +191,75 @@ public struct HTMLDocument: Sendable {
         nameRange: UInt64 = 0,
         dataRange: UInt64 = 0
     ) -> Node {
-        kinds.append(kind.rawValue)
-        names.append(name.rawValue)
-        namespaces.append(space.rawValue)
-        parents.append(-1)
-        firstChildren.append(-1)
-        lastChildren.append(-1)
-        nextSiblings.append(-1)
-        previousSiblings.append(-1)
-        nameRanges.append(nameRange)
-        dataRanges.append(dataRange)
-        firstAttributes.append(-1)
-        lastAttributes.append(-1)
-        attributeCounts.append(0)
-        return Node(raw: Int32(kinds.count - 1))
+        records.append(
+            Record(
+                kind: kind.rawValue,
+                namespace: space.rawValue,
+                name: name.rawValue,
+                nameRange: nameRange,
+                dataRange: dataRange
+            )
+        )
+        return Node(raw: Int32(records.count - 1))
     }
 
     mutating func addAttribute(_ node: Node, name: UInt64, value: UInt64, namespace: UInt8 = 0) {
-        let index = Int32(attributeNames.count)
-        attributeNames.append(name)
-        attributeValues.append(value)
-        attributeNamespaces.append(namespace)
-        attributeNext.append(-1)
-        let last = lastAttributes[Int(node.raw)]
-        if last >= 0 { attributeNext[Int(last)] = index } else { firstAttributes[Int(node.raw)] = index }
-        lastAttributes[Int(node.raw)] = index
-        attributeCounts[Int(node.raw)] += 1
-    }
-
-    /// Whether the element has an attribute of this name (no namespace).
-    func hasAttribute(_ node: Node, _ name: ArraySlice<UInt8>) -> Bool {
-        var index = firstAttributes[Int(node.raw)]
-        while index >= 0 {
-            if attributeNamespaces[Int(index)] == 0, bytes(attributeNames[Int(index)]).elementsEqual(name) {
-                return true
-            }
-            index = attributeNext[Int(index)]
-        }
-        return false
+        let index = Int32(attributeRecords.count)
+        attributeRecords.append(AttributeRecord(name: name, value: value, namespace: namespace))
+        let last = records[Int(node.raw)].lastAttribute
+        if last >= 0 { attributeRecords[Int(last)].next = index } else { records[Int(node.raw)].firstAttribute = index }
+        records[Int(node.raw)].lastAttribute = index
+        records[Int(node.raw)].attributeCount += 1
     }
 
     /// Puts `child` last under `parent`.
     mutating func append(_ child: Node, to parent: Node) {
         detach(child)
-        let last = lastChildren[Int(parent.raw)]
-        parents[Int(child.raw)] = parent.raw
-        previousSiblings[Int(child.raw)] = last
-        nextSiblings[Int(child.raw)] = -1
-        if last >= 0 { nextSiblings[Int(last)] = child.raw } else { firstChildren[Int(parent.raw)] = child.raw }
-        lastChildren[Int(parent.raw)] = child.raw
+        let last = records[Int(parent.raw)].lastChild
+        records[Int(child.raw)].parent = parent.raw
+        records[Int(child.raw)].previousSibling = last
+        records[Int(child.raw)].nextSibling = -1
+        if last >= 0 {
+            records[Int(last)].nextSibling = child.raw
+        } else {
+            records[Int(parent.raw)].firstChild = child.raw
+        }
+        records[Int(parent.raw)].lastChild = child.raw
     }
 
     /// Puts `child` under `parent` before `reference` (last, if `reference` is none).
     mutating func insert(_ child: Node, in parent: Node, before reference: Node) {
         guard !reference.isNone else { return append(child, to: parent) }
         detach(child)
-        let previous = previousSiblings[Int(reference.raw)]
-        parents[Int(child.raw)] = parent.raw
-        previousSiblings[Int(child.raw)] = previous
-        nextSiblings[Int(child.raw)] = reference.raw
-        previousSiblings[Int(reference.raw)] = child.raw
-        if previous >= 0 { nextSiblings[Int(previous)] = child.raw } else { firstChildren[Int(parent.raw)] = child.raw }
+        let previous = records[Int(reference.raw)].previousSibling
+        records[Int(child.raw)].parent = parent.raw
+        records[Int(child.raw)].previousSibling = previous
+        records[Int(child.raw)].nextSibling = reference.raw
+        records[Int(reference.raw)].previousSibling = child.raw
+        if previous >= 0 {
+            records[Int(previous)].nextSibling = child.raw
+        } else {
+            records[Int(parent.raw)].firstChild = child.raw
+        }
     }
 
     /// Takes `node` out of its parent.
     mutating func detach(_ node: Node) {
-        let parent = parents[Int(node.raw)]
-        guard parent >= 0 else { return }
-        let previous = previousSiblings[Int(node.raw)]
-        let next = nextSiblings[Int(node.raw)]
-        if previous >= 0 { nextSiblings[Int(previous)] = next } else { firstChildren[Int(parent)] = next }
-        if next >= 0 { previousSiblings[Int(next)] = previous } else { lastChildren[Int(parent)] = previous }
-        parents[Int(node.raw)] = -1
-        previousSiblings[Int(node.raw)] = -1
-        nextSiblings[Int(node.raw)] = -1
+        let record = records[Int(node.raw)]
+        guard record.parent >= 0 else { return }
+        if record.previousSibling >= 0 {
+            records[Int(record.previousSibling)].nextSibling = record.nextSibling
+        } else {
+            records[Int(record.parent)].firstChild = record.nextSibling
+        }
+        if record.nextSibling >= 0 {
+            records[Int(record.nextSibling)].previousSibling = record.previousSibling
+        } else {
+            records[Int(record.parent)].lastChild = record.previousSibling
+        }
+        records[Int(node.raw)].parent = -1
+        records[Int(node.raw)].previousSibling = -1
+        records[Int(node.raw)].nextSibling = -1
     }
 
     /// Moves all the children of `from` to the end of `to`.
@@ -275,4 +271,13 @@ public struct HTMLDocument: Sendable {
             child = next
         }
     }
+
+    // MARK: Fields the builder reads often
+
+    func atom(_ node: Node) -> UInt16 { records[Int(node.raw)].name }
+    func namespaceRaw(_ node: Node) -> UInt8 { records[Int(node.raw)].namespace }
+    func kindRaw(_ node: Node) -> UInt8 { records[Int(node.raw)].kind }
+    func nameRange(_ node: Node) -> UInt64 { records[Int(node.raw)].nameRange }
+    func dataRange(_ node: Node) -> UInt64 { records[Int(node.raw)].dataRange }
+    mutating func setDataRange(_ node: Node, _ range: UInt64) { records[Int(node.raw)].dataRange = range }
 }

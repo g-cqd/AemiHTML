@@ -66,8 +66,7 @@ public enum HTMLParser {
         tokenizerOptions.initialState = state
         tokenizerOptions.switchesContentModel = false
         tokenizerOptions.collectsErrors = options.collectsErrors
-        var bytes = input.count > TapeSlot.maxLow ? Array(input.prefix(TapeSlot.maxLow)) : input
-        if AemiKernels.firstIndexOfByte(0x0D, in: bytes) != nil { bytes = HTMLTokenizer.normalizedNewlines(bytes) }
+        let bytes = HTMLTokenizer.prepared(input)
         var out = HTMLTokens(source: bytes)
         out.tape.reserveCapacity(bytes.count / 12 + 16)
         var tokenizer = HTMLTokenizer(input: bytes, options: tokenizerOptions, out: out)

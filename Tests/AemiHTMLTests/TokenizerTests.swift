@@ -94,3 +94,44 @@ struct TokenizerTests {
         }
     }
 }
+
+/// The input is decoded as the standard decodes UTF-8: what the document holds is always well-formed.
+@Suite("Ill-formed UTF-8")
+struct IllFormedInputTests {
+    private func text(_ bytes: [UInt8]) -> [UInt8] {
+        let document = HTMLParser.parse(bytes)
+        var out: [UInt8] = []
+        for node in document.descendants(of: document.root) where document.kind(node) == .text {
+            out += document.data(node)
+        }
+        return out
+    }
+
+    @Test func `a stray byte becomes one replacement character`() {
+        #expect(
+            text(Array("a".utf8) + [0xFF] + Array("b".utf8)) == Array("a".utf8) + [0xEF, 0xBF, 0xBD] + Array("b".utf8)
+        )
+    }
+
+    @Test func `a truncated sequence is one replacement, per maximal subpart`() {
+        // E2 82 is the start of a three-byte sequence; F0 90 80 the start of a four-byte one: each is one U+FFFD.
+        #expect(text([0xE2, 0x82, 0x41]) == [0xEF, 0xBF, 0xBD, 0x41])
+        #expect(text([0xF0, 0x90, 0x80, 0x41]) == [0xEF, 0xBF, 0xBD, 0x41])
+        #expect(text([0xC0, 0xAF]) == [0xEF, 0xBF, 0xBD, 0xEF, 0xBF, 0xBD])
+        #expect(text([0xED, 0xA0, 0x80]) == [0xEF, 0xBF, 0xBD, 0xEF, 0xBF, 0xBD, 0xEF, 0xBF, 0xBD])
+    }
+
+    @Test func `a byte order mark is dropped and well-formed text is untouched`() {
+        #expect(text([0xEF, 0xBB, 0xBF] + Array("é日本🙂".utf8)) == Array("é日本🙂".utf8))
+    }
+
+    @Test func `the result is always valid UTF-8`() {
+        var generator = SystemRandomNumberGenerator()
+        for _ in 0 ..< 500 {
+            let bytes = (0 ..< Int.random(in: 0 ... 200, using: &generator))
+                .map { _ in UInt8.random(in: 0 ... 255, using: &generator) }
+            let out = text(bytes)
+            #expect(String(validating: out, as: UTF8.self) != nil)
+        }
+    }
+}

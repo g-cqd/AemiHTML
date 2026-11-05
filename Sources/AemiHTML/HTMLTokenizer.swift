@@ -77,8 +77,7 @@ public struct HTMLTokenizer {
 
     /// The tokens of `input`. Input over 4 GiB is cut there (a slot's offset is 32 bits).
     public static func tokenize(_ input: [UInt8], options: Options = Options()) -> HTMLTokens {
-        var bytes = input.count > TapeSlot.maxLow ? Array(input.prefix(TapeSlot.maxLow)) : input
-        if AemiKernels.firstIndexOfByte(0x0D, in: bytes) != nil { bytes = normalizedNewlines(bytes) }
+        let bytes = prepared(input)
         var result = HTMLTokens(source: bytes)
         let count = bytes.count
         result.tape.reserveCapacity(count / 16 + 16)
@@ -87,6 +86,16 @@ public struct HTMLTokenizer {
         machine.run()
         result = machine.out
         return result
+    }
+
+    /// The input as the tokenizer reads it: cut at 4 GiB (a slot's offset is 32 bits); decoded as UTF-8 the way the standard decodes it, that is a leading byte order mark dropped and each ill-formed sequence replaced by one U+FFFD per maximal
+    /// subpart (so every text the document holds is well-formed); and with its line endings normalized. Input that is already well-formed with no CR (nearly all of it) is not copied: it costs one SIMD validation and one SIMD search.
+    static func prepared(_ input: [UInt8]) -> [UInt8] {
+        var bytes = input.count > TapeSlot.maxLow ? Array(input.prefix(TapeSlot.maxLow)) : input
+        if bytes.count >= 3, bytes[0] == 0xEF, bytes[1] == 0xBB, bytes[2] == 0xBF { bytes.removeFirst(3) }
+        if AemiKernels.firstInvalidUTF8(bytes) != nil { bytes = Array(String(decoding: bytes, as: UTF8.self).utf8) }
+        if AemiKernels.firstIndexOfByte(0x0D, in: bytes) != nil { bytes = normalizedNewlines(bytes) }
+        return bytes
     }
 
     /// CR LF and CR become LF (13.2.3.5), before tokenization.

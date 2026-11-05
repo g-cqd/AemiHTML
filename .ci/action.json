@@ -1,0 +1,14 @@
+{
+  "swift": {
+    "versions": ["6.4.1"],
+    "environment": { "AD_TYPECHECK_BUDGET_MS": "250" }
+  },
+  "quality": {
+    "paths": ["Sources", "Tests"],
+    "discipline": {
+      "shipped": ["Sources"],
+      "forceUnwrap": true,
+      "rules": ["strtod", "inline-prng", "untyped-throws", "wall-clock"]
+    }
+  }
+}

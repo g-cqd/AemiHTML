@@ -295,7 +295,7 @@ extension HTMLTreeBuilder {
 
 extension HTMLTreeBuilder {
     /// What a `meta` start tag declares (13.2.6.4.4): a `charset` attribute that names an encoding, else a `content` attribute with `charset=` in it, when `http-equiv` is `content-type`. UTF-16 is taken for UTF-8 and x-user-defined for windows-1252, as the standard says.
-    func encodingDeclared(by token: BuilderToken) -> HTMLEncoding? {
+    mutating func encodingDeclared(by token: BuilderToken) -> HTMLEncoding? {
         var found: HTMLEncoding?
         if let label = tokenAttribute(token, "charset"), let encoding = HTMLEncoding(label: label) {
             found = encoding

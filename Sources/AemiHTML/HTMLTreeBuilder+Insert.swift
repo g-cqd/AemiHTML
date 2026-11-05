@@ -10,7 +10,7 @@ extension HTMLTreeBuilder {
     func templateContents(of template: Node) -> Node { document.firstChild(template) }
 
     /// 13.2.6.1: the appropriate place for inserting a node, with foster parenting and templates.
-    func appropriatePlace(override: Node = .none) -> Place {
+    mutating func appropriatePlace(override: Node = .none) -> Place {
         var parent = override.isNone ? currentNode : override
         var before = Node.none
         if fosterParenting, isHTML(parent, .table, .tbody, .tfoot, .thead, .tr) {

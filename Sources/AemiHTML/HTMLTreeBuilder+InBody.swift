@@ -44,9 +44,9 @@ extension HTMLTreeBuilder {
         }
     }
 
-    private var hasParagraphInButtonScope: Bool { hasInScope(.p, .button) }
+    private var hasParagraphInButtonScope: Bool { mutating get { hasInScope(.p, .button) } }
 
-    private func isFragmentSelect() -> Bool { !contextElement.isNone && isHTML(contextElement, .select) }
+    private mutating func isFragmentSelect() -> Bool { !contextElement.isNone && isHTML(contextElement, .select) }
 
     // MARK: Start tags
 

@@ -2,7 +2,7 @@ internal import AemiKernel
 
 extension HTMLTreeBuilder {
     var parsingTemplateContents: Bool {
-        hasTemplateOnStack || (!contextElement.isNone && isHTML(contextElement, .template))
+        mutating get { hasTemplateOnStack || (!contextElement.isNone && isHTML(contextElement, .template)) }
     }
 
     // MARK: text (13.2.6.4.8)

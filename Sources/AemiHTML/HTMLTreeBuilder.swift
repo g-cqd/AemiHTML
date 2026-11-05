@@ -146,7 +146,7 @@ struct HTMLTreeBuilder {
     func attributeCount(_ token: BuilderToken) -> Int { Int(TapeSlot.aux(tokenizer.out.tape[token.index]) & 0xFFF) }
 
     /// The value of the attribute `name` on a tag token (lower case name), if it has one.
-    func tokenAttribute(_ token: BuilderToken, _ name: String) -> ArraySlice<UInt8>? {
+    mutating func tokenAttribute(_ token: BuilderToken, _ name: String) -> ArraySlice<UInt8>? {
         for number in 0 ..< attributeCount(token) {
             let at = token.index + 2 + number * 2
             if tokenizer.out.bytes(ofSlot: at).elementsEqual(name.utf8) { return tokenizer.out.bytes(ofSlot: at + 1) }
@@ -154,7 +154,9 @@ struct HTMLTreeBuilder {
         return nil
     }
 
-    func tokenHasAttribute(_ token: BuilderToken, _ name: String) -> Bool { tokenAttribute(token, name) != nil }
+    mutating func tokenHasAttribute(_ token: BuilderToken, _ name: String) -> Bool {
+        tokenAttribute(token, name) != nil
+    }
 
     // MARK: Whitespace
 

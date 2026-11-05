@@ -43,7 +43,7 @@ extension HTMLTreeBuilder {
     }
 
     /// Whether the token goes to the rules for foreign content (the list of 13.2.6).
-    func usesForeignRules(_ token: BuilderToken) -> Bool {
+    mutating func usesForeignRules(_ token: BuilderToken) -> Bool {
         // The common case first: the adjusted current node is an HTML element.
         let node = (stack.count == 1 && !contextElement.isNone) ? contextElement : (stack.last ?? .none)
         if node.isNone || document.namespaceRaw(node) == HTMLDocument.Namespace.html.rawValue

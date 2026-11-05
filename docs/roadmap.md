@@ -5,7 +5,7 @@ Done: the tokenizer (`HTMLTokenizer`), checked against html5lib's tokenizer test
 Next, in this order, each with its own measure before it is called done:
 
 1. **Tree construction** (13.2.6): the insertion modes and the adoption agency algorithm, on an explicit stack, into a tape DOM (a preorder `[UInt64]` with the subtree's end in a container's `low`, as `TapeSlot` documents,
-   which is the layout ADHTML's `HTMLTape` had). Checked against html5lib's tree-construction tests (`tree-construction/*.dat`, ~1,700 cases), as the tokenizer is. The recursive `HTMLNode` walk of ADHTML does not come back.
+   which is the layout ADHTML's `HTMLTape` had). Checked against the tree-construction tests, which html5lib no longer keeps: they are maintained in web-platform-tests (`html/syntax/parsing`, per html5lib-tests' README), so the fetch script gains that source and a pinned commit; the case count is to be measured then. The recursive `HTMLNode` walk of ADHTML does not come back.
 2. **Extractors**: HTML to plain text and to Markdown (headings, paragraphs, lists, links, code, tables, emphasis; scripts, styles, navigation and hidden elements dropped), which is the consumer roadmap 0139 waited for (a fetch tool for ask).
    Round trip as a test: the Markdown AemiMarkdown parses to the structure the HTML had.
 3. **Streaming**: feed the tokenizer in chunks (a fetched page arrives that way); the state machine already keeps all its state in `HTMLTokenizer`, the open question is a token that spans two chunks.

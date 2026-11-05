@@ -12,6 +12,7 @@ extension HTMLTokenizer {
                     targetStart = pos
                     state = .processingInstructionTarget
                 } else if next == -1 {
+                    reachedEnd()
                     error(.eofInProcessingInstruction)
                     done = true
                 } else {
@@ -35,6 +36,7 @@ extension HTMLTokenizer {
                 continue
             }
             if next == -1 {
+                reachedEnd()
                 error(.eofInProcessingInstruction)
                 done = true
             } else if Self.isWhitespace(next) || next == 0x3F || next == 0x3E {
@@ -62,6 +64,7 @@ extension HTMLTokenizer {
         let stop = find(Stops.greaterThan, from: pos)
         guard stop < count else {
             pos = count
+            reachedEnd()
             error(.eofInProcessingInstruction)
             done = true
             return

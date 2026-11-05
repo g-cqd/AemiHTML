@@ -28,13 +28,19 @@ extension HTMLTokenizer {
         }
     }
 
+    /// A text state has used up the input: the document is over, or, in a stream, the text so far is complete and more may follow.
+    mutating func textUsedUp() {
+        if isFinal { done = true } else { needMore = true }
+    }
+
     /// 13.2.5.1: text up to `<`, `&` or NUL.
     mutating func dataState() {
         let stop = find(Stops.data, from: pos)
         emitText(pos, stop)
         pos = stop
+        markAfterText()
         guard pos < count else {
-            done = true
+            textUsedUp()
             return
         }
         switch Int(input[pos]) {
@@ -60,8 +66,9 @@ extension HTMLTokenizer {
         let stop = find(rcdata ? Stops.data : Stops.rawtext, from: pos)
         emitText(pos, stop)
         pos = stop
+        markAfterText()
         guard pos < count else {
-            done = true
+            textUsedUp()
             return
         }
         switch Int(input[pos]) {
@@ -89,10 +96,13 @@ extension HTMLTokenizer {
     }
 
     /// If `at` is `</` + the last start tag's name + whitespace, `/` or `>`, the index after the name.
-    func appropriateEndTag(at index: Int) -> Int? {
+    mutating func appropriateEndTag(at index: Int) -> Int? {
         let last = out.bytes(range: lastStartTagRange)
         let length = last.count
-        guard length > 0, byte(index + 1) == 0x2F, index + 2 + length <= count else { return nil }
+        guard length > 0 else { return nil }
+        // The bytes that decide: `</`, the name, and the one after it.
+        if index + 3 + length > count { reachedEnd() }
+        guard byte(index + 1) == 0x2F, index + 2 + length <= count else { return nil }
         for offset in 0 ..< length {
             var value = input[index + 2 + offset]
             if value >= 0x41, value <= 0x5A { value += 0x20 }
@@ -109,7 +119,7 @@ extension HTMLTokenizer {
         emitText(pos, stop)
         pos = stop
         guard pos < count else {
-            done = true
+            textUsedUp()
             return
         }
         error(.unexpectedNullCharacter)
@@ -123,6 +133,16 @@ extension HTMLTokenizer {
         while true {
             index = find(Stops.cdata, from: index)
             if index >= count {
+                if !isFinal {
+                    // `]]` at the end may be the start of `]]>`: those two bytes wait.
+                    var safe = Swift.max(pos, count - 2)
+                    // Not inside a character: a token is whole characters.
+                    while safe > pos, input[safe] & 0xC0 == 0x80 { safe -= 1 }
+                    emitText(pos, safe)
+                    pos = safe
+                    needMore = true
+                    return
+                }
                 emitText(pos, count)
                 pos = count
                 error(.eofInCdata)

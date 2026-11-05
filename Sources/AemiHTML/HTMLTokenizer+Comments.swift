@@ -25,6 +25,8 @@ extension HTMLTokenizer {
 
     /// 13.2.5.42: after `<!`: `--` opens a comment, `DOCTYPE` (any case) a doctype, `[CDATA[` a CDATA section where foreign content allows it; anything else is a bogus comment.
     mutating func markupDeclarationOpenState() {
+        // The longest word to match is seven bytes: wait for them, or for the end.
+        if pos + 7 > count { reachedEnd() }
         if byte(pos) == 0x2D, byte(pos + 1) == 0x2D {
             pos += 2
             dataStart = pos
@@ -60,7 +62,10 @@ extension HTMLTokenizer {
         dataEnd = stop
         pos = Swift.min(stop + 1, count)
         emitComment()
-        if stop >= count { done = true }
+        if stop >= count {
+            reachedEnd()
+            done = true
+        }
     }
 
     mutating func commentStartState() {
@@ -94,6 +99,7 @@ extension HTMLTokenizer {
     }
 
     mutating func commentEOF() {
+        reachedEnd()
         error(.eofInComment)
         emitComment()
         done = true

@@ -30,7 +30,16 @@ extension HTMLTokenizer {
     // MARK: Reading
 
     /// The byte at `index`, or -1 past the end.
-    @inline(__always) func byte(_ index: Int) -> Int { index < count ? Int(input[index]) : -1 }
+    @inline(__always) mutating func byte(_ index: Int) -> Int {
+        if index < count { return Int(input[index]) }
+        if !isFinal { touchedEnd = true }
+        return -1
+    }
+
+    /// Notes that what the tokenizer is about to do depends on the input ending here: in a stream it will be undone and waited out, in a whole document nothing changes.
+    @inline(__always) mutating func reachedEnd() {
+        if !isFinal { touchedEnd = true }
+    }
 
     /// The index of the first byte at or after `from` that is in `set`, or `count`.
     @inline(__always) func find(_ set: AemiKernels.ByteSet, from: Int) -> Int {
@@ -55,8 +64,11 @@ extension HTMLTokenizer {
     }
 
     /// Whether the bytes at `index` are `word` in any case (`word` is lower case).
-    func matches(_ word: StaticString, at index: Int) -> Bool {
-        guard index + word.utf8CodeUnitCount <= count else { return false }
+    mutating func matches(_ word: StaticString, at index: Int) -> Bool {
+        guard index + word.utf8CodeUnitCount <= count else {
+            reachedEnd()
+            return false
+        }
         for offset in 0 ..< word.utf8CodeUnitCount {
             var value = input[index + offset]
             if value >= 0x41, value <= 0x5A { value += 0x20 }
@@ -81,7 +93,8 @@ extension HTMLTokenizer {
         var from = from
         while from < to {
             let length = Swift.min(to - from, HTMLTokens.maxLength)
-            if tag == HTMLTokens.Tag.text, let last = out.tape.last, TapeSlot.tag(last) == tag {
+            if tag == HTMLTokens.Tag.text, out.tape.count > sealed, let last = out.tape.last, TapeSlot.tag(last) == tag
+            {
                 let aux = Int(TapeSlot.aux(last))
                 let low = TapeSlot.low(last)
                 let have = aux >> 1
@@ -115,7 +128,7 @@ extension HTMLTokenizer {
     /// A scalar the tokenizer made (a decoded reference, U+FFFD), as text: the text before it in the run moves to the scratch, if it is not there, so that the run stays one contiguous range.
     mutating func emitScalars(_ first: UInt32, _ second: UInt32? = nil) {
         var start = out.scratch.count
-        if let last = out.tape.last, TapeSlot.tag(last) == HTMLTokens.Tag.text {
+        if out.tape.count > sealed, let last = out.tape.last, TapeSlot.tag(last) == HTMLTokens.Tag.text {
             let aux = Int(TapeSlot.aux(last))
             let low = TapeSlot.low(last)
             let have = aux >> 1
@@ -181,8 +194,8 @@ extension HTMLTokenizer {
     // MARK: Errors in the input stream
 
     /// The parse errors of the input stream (13.2.3.5): control characters and noncharacters, and surrogates that UTF-8 cannot hold (they cannot be in `[UInt8]` read as UTF-8, so not reported).
-    mutating func scanInputErrors() {
-        var index = 0
+    mutating func scanInputErrors(from start: Int = 0) {
+        var index = start
         while index < count {
             let lead = input[index]
             var value = UInt32(lead)

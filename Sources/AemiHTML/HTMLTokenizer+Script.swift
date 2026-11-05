@@ -19,6 +19,8 @@ extension HTMLTokenizer {
             if stop > pos { scan.dashes = 0 }
             pos = stop
             guard pos < count else {
+                // Its state (the escapes, the dashes) is in this step: in a stream it is undone and run again whole.
+                reachedEnd()
                 emitText(scan.runStart, count)
                 if scan.escaped { error(.eofInScriptHtmlCommentLikeText) }
                 done = true

@@ -43,8 +43,18 @@ public struct HTMLTokenizer {
         case afterDoctypeSystemIdentifier, bogusDoctype
     }
 
-    let input: [UInt8]
-    let count: Int
+    var input: [UInt8]
+    var count: Int
+    /// Whether the input is all there is. With `false` (a stream, `HTMLStreamParser`), a step that needed a byte past the end is undone and waited out: see `advanceStreaming()`.
+    var isFinal = true
+    /// Set by a step that looked at, or decided by, the end of the available input.
+    var touchedEnd = false
+    /// Set by a text state that used up the available input, with nothing pending: more may come.
+    var needMore = false
+    /// Tape slots before this index have been read by the tree builder: text is never merged into them.
+    var sealed = 0
+    /// Where the token being read began (streaming).
+    var streamMark = Mark()
     let options: Options
     /// Whether `<![CDATA[` opens a CDATA section: the tree builder sets it while the adjusted current node is in a foreign namespace.
     var allowsCDATA: Bool

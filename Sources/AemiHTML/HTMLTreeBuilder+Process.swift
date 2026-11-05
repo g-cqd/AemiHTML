@@ -128,5 +128,6 @@ extension HTMLTreeBuilder {
         document.source = tokenizer.out.source
         document.scratch = tokenizer.out.scratch
         document.errors = tokenizer.out.errors
+        if sawSelectedContent { document.updateSelectedContents() }
     }
 }

@@ -57,6 +57,7 @@ extension HTMLTreeBuilder {
             spelling = SVGAdjustments.tag(tokenizer.out.bytes(range: nameRange))
         }
         if let spelling { nameRange = tokenizer.out.intern(utf8: spelling) }
+        if atom == .selectedcontent { sawSelectedContent = true }
         let node = document.makeNode(.element, name: atom, space: space, nameRange: nameRange)
         let count = Int(TapeSlot.aux(tokenizer.out.tape[tokenIndex]) & 0xFFF)
         for number in 0 ..< count {

@@ -4,17 +4,27 @@ import Foundation
 
 /// The tree-construction tests of html5lib in their `.dat` format, and the tree dump they compare against.
 enum Html5libTree {
-    static var directory: String {
-        let cache =
-            ProcessInfo.processInfo.environment["AEMIHTML_CORPUS"]
+    private static var cache: String {
+        ProcessInfo.processInfo.environment["AEMIHTML_CORPUS"]
             ?? NSString(string: "~/Library/Caches/AemiHTMLCorpus").expandingTildeInPath
-        return cache + "/tree-construction-src/tree-construction"
     }
 
-    static var files: [String] {
-        ((try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []).filter { $0.hasSuffix(".dat") }
-            .sorted()
+    /// html5lib's own copy, frozen in 2026-06 (Scripts/fetch-html5lib.sh): its cases list the errors they expect, which the copy that replaced it mostly does not.
+    static var frozenDirectory: String { cache + "/tree-construction-src/tree-construction" }
+
+    /// The copy web-platform-tests keeps (Scripts/fetch-wpt-tree.sh) is the newer one and the one the trees are checked against; the frozen copy is the fallback.
+    static var directory: String {
+        let wpt = cache + "/wpt-tree-construction"
+        return FileManager.default.fileExists(atPath: wpt) ? wpt : frozenDirectory
     }
+
+    /// The `.dat` files of `directory`, but not the `scripted_*` ones: their cases run scripts (`document.write`), which a parser alone cannot.
+    static func files(in directory: String = Html5libTree.directory) -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? [])
+            .filter { $0.hasSuffix(".dat") && !$0.hasPrefix("scripted_") }.sorted()
+    }
+
+    static var files: [String] { files() }
 
     /// `file#number` of the cases the standard has moved past (or that need more than parsing), each with the reason: `Tests/AemiHTMLTests/known-differences.txt`.
     static var knownDifferences: [String: String] {
@@ -61,7 +71,7 @@ enum Html5libTree {
         return (lines.isEmpty ? listedNew : lines.count, lines)
     }
 
-    static func cases(in file: String) -> [Case] {
+    static func cases(in file: String, from directory: String = Html5libTree.directory) -> [Case] {
         guard let text = try? String(contentsOfFile: directory + "/" + file, encoding: .utf8) else { return [] }
         var found: [Case] = []
         let blocks = text.components(separatedBy: "\n#data\n")
@@ -88,6 +98,11 @@ enum Html5libTree {
                 fragment = String(header[range.upperBound...].prefix { $0 != "\n" })
             }
             var expected = String(rest[documentMark.upperBound...])
+            // A case may begin with a `#description`, which then trails the case before it in this split.
+            if let description = expected.range(of: "\n#description\n") {
+                expected = String(expected[..<description.lowerBound])
+            }
+            if expected.hasPrefix("#description\n") { expected = "" }
             while expected.hasSuffix("\n") { expected.removeLast() }
             if data.hasSuffix("\n") && index == blocks.count - 1 && false { data.removeLast() }
             found.append(
@@ -136,8 +151,8 @@ enum Html5libTree {
                 case .text: lines.append("\(pad)\"\(text(document.data(node)))\"")
                 case .comment: lines.append("\(pad)<!-- \(text(document.data(node))) -->")
                 case .processingInstruction:
-                    let data = text(document.data(node))
-                    lines.append("\(pad)<?\(text(document.name(node)))\(data.isEmpty ? "" : " " + data)>")
+                    // The test format writes the target, a space, the data, and `?>`, whatever the data is (the standard's serialization of a processing instruction).
+                    lines.append("\(pad)<?\(text(document.name(node))) \(text(document.data(node)))?>")
                 case .doctype:
                     let name = text(document.name(node))
                     let publicID = text(document.publicIdentifier)

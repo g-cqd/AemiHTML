@@ -27,19 +27,36 @@ for token in tokens.tokens {
 
 ## Speed
 
-`Benchmarks/Compare` tokenizes 15 real pages (the HTML Standard, Wikipedia, MDN, GitHub, news sites; 19.9 MB, downloaded by `Scripts/fetch-pages.sh`, never committed) with AemiHTML, html5ever (Rust, the engine of Servo) and
-Python's `html.parser`, counting tokens and the bytes of text, one thread, best of seven rounds of CPU time, Apple M3:
+`Benchmarks/Compare` runs 15 real pages (the HTML Standard, Wikipedia, MDN, GitHub, news sites; 19.9 MB, downloaded by `Scripts/fetch-pages.sh`, never committed) through AemiHTML and other parsers, one thread, best of nine rounds of CPU
+time, Apple M3, at a load average of 3.5:
 
-| Tokenizer | MB/s | Tokens | Text bytes |
-|---|---:|---:|---:|
-| AemiHTML, errors not collected | 126.7 | 1,203,730 | 5,751,516 |
-| html5ever 0.35 (it always reports errors, as tokens) | 80.7 | 1,280,379 | 5,714,973 |
-| AemiHTML, errors collected | 77.9 | 1,203,730 | 5,751,516 |
-| Python `html.parser` (not the HTML5 algorithm) | 7.5 | 1,195,936 | 5,751,516 |
+| Tokenizing only | MB/s | Tokens |
+|---|---:|---:|
+| **AemiHTML**, errors not collected | **257** | 1,195,936 |
+| html5ever 0.35 (Rust; it reports errors, as tokens) | 128 | 1,280,379 |
+| **AemiHTML**, errors collected | 170 | 1,195,936 |
+| Python `html.parser` (not the HTML5 algorithm) | 7 | 1,195,936 |
 
-Read it as: about 1.6 times html5ever when errors are not wanted, and level with it when they are. html5ever's extra 76,000 tokens are its error tokens. This is one run on a shared machine (a second, at a load average of
-13, gave 70, 62 and 59 MB/s: the ordering held, the ratios shrank), on pages as served on the day. The tokenizers do the same job (the standard's tokenization), not the same output: html5ever's text arrives as tendrils and AemiHTML's as ranges of the source.
+| Parsing to a DOM | MB/s | Nodes |
+|---|---:|---:|
+| **AemiHTML** (the arena `HTMLDocument`) | **157** | 823,420 |
+| Lexbor (C, via selectolax) | 100 | 822,696 |
+| html5ever with `markup5ever_rcdom` | 82 | 821,916 |
+| parse5 7 (JavaScript) | 19 | 822,585 |
+
+The node counts agree to within a fifth of a percent across four independent implementations, which is a check on the tree builder as much as on the benchmark (the differences are whitespace and doctype handling in each library's own DOM).
+What it does not say: the DOMs are not the same objects (AemiHTML's text is ranges of the source and its nodes are records in one array; html5ever's are reference-counted nodes with tendrils; Lexbor's are C structs read through Python), the benchmark walks each DOM once to
+count nodes and text, and the pages are as served on the day. A run at a load average of 13 gave AemiHTML 65 MB/s (parse) with the others' ordering unchanged: read ratios, not decimals.
+
+Where it comes from (each measured, in this repository's history): the tokenizer allocates nothing per token and the tree builder nothing per node (`AllocationTests` counts, per construct, in release); a run of text is one slot whatever it decodes
+to; element names are a `switch` over integers; the document is one array of records, so adding a node is one append; and the scans for the next byte that matters are `AemiKernels`' SIMD search.
+
+## Tree construction
+
+`HTMLParser.parse` runs the tokenizer and the tree builder of 13.2.6 (every insertion mode, the adoption agency algorithm, foster parenting, templates, foreign content, quirks, the fragment parsing algorithm) into an `HTMLDocument`.
+It is checked against html5lib's 1,792 tree-construction cases, all but eight (`known-differences.txt`: four from the 2026 processing-instruction change, four that need the `<selectedcontent>` element's own DOM behaviour). The tree's depth is bounded (default 512, as browsers do),
+so every pass is linear.
 
 ## Not here yet
 
-Tree construction (the insertion modes) and the HTML-to-Markdown and plain-text extractors ADHTML had: see `docs/roadmap.md`.
+The HTML-to-Markdown and plain-text extractors ADHTML had: see `docs/roadmap.md`.

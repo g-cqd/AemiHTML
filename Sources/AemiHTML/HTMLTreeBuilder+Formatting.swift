@@ -6,7 +6,7 @@ extension HTMLTreeBuilder {
     func formattingIndex(of node: Node) -> Int? { formatting.lastIndex { $0.node == node } }
 
     /// Whether the start tags at two tape indices have the same attributes, as sets of names and values (the Noah's Ark comparison, on the tokens' attributes).
-    func sameAttributes(_ a: Int, _ b: Int) -> Bool {
+    mutating func sameAttributes(_ a: Int, _ b: Int) -> Bool {
         let tape = tokenizer.out.tape
         let count = Int(TapeSlot.aux(tape[a]) & 0xFFF)
         guard count == Int(TapeSlot.aux(tape[b]) & 0xFFF) else { return false }

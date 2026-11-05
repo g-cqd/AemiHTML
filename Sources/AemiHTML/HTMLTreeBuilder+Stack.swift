@@ -3,14 +3,14 @@ internal import AemiKernel
 extension HTMLTreeBuilder {
     // MARK: Names
 
-    func isElement(_ node: Node, _ name: HTMLName, in space: HTMLDocument.Namespace = .html) -> Bool {
+    mutating func isElement(_ node: Node, _ name: HTMLName, in space: HTMLDocument.Namespace = .html) -> Bool {
         document.atom(node) == name.rawValue && document.namespaceRaw(node) == space.rawValue
             && document.kindRaw(node) == HTMLDocument.Kind.element.rawValue
     }
 
     /// Whether `node` is an HTML element with one of up to five names. Fixed arity, so nothing is allocated to ask.
     @inline(__always)
-    func isHTML(
+    mutating func isHTML(
         _ node: Node,
         _ a: HTMLName,
         _ b: HTMLName = .none,
@@ -27,13 +27,13 @@ extension HTMLTreeBuilder {
     }
 
     @inline(__always)
-    func isHTML(_ node: Node, in set: NameSet) -> Bool {
+    mutating func isHTML(_ node: Node, in set: NameSet) -> Bool {
         isHTMLElement(node) && set.contains(document.atom(node))
     }
 
     func name(of node: Node) -> HTMLName { HTMLName(rawValue: document.atom(node)) ?? .unknown }
-    func space(of node: Node) -> HTMLDocument.Namespace { document.namespace(node) }
-    func isHTMLElement(_ node: Node) -> Bool { space(of: node) == .html && document.kind(node) == .element }
+    mutating func space(of node: Node) -> HTMLDocument.Namespace { document.namespace(node) }
+    mutating func isHTMLElement(_ node: Node) -> Bool { space(of: node) == .html && document.kind(node) == .element }
 
     static func isHeading(_ name: HTMLName) -> Bool {
         switch name {
@@ -43,7 +43,7 @@ extension HTMLTreeBuilder {
     }
 
     /// The special category of 13.2.4.2.
-    func isSpecial(_ node: Node) -> Bool {
+    mutating func isSpecial(_ node: Node) -> Bool {
         let name = name(of: node)
         switch space(of: node) {
             case .html:
@@ -126,7 +126,7 @@ extension HTMLTreeBuilder {
     enum Scope { case regular, listItem, button, table }
 
     /// Whether `node` stops the scope search (13.2.4.2).
-    func stops(_ node: Node, _ scope: Scope) -> Bool {
+    mutating func stops(_ node: Node, _ scope: Scope) -> Bool {
         let name = name(of: node)
         switch space(of: node) {
             case .html:
@@ -157,7 +157,7 @@ extension HTMLTreeBuilder {
     }
 
     /// Whether an HTML element for which `matches` holds is in the scope, searching from the current node up.
-    func hasInScope(_ scope: Scope, where matches: (HTMLName) -> Bool) -> Bool {
+    mutating func hasInScope(_ scope: Scope, where matches: (HTMLName) -> Bool) -> Bool {
         var index = stack.count - 1
         while index >= 0 {
             let node = stack[index]
@@ -168,9 +168,11 @@ extension HTMLTreeBuilder {
         return false
     }
 
-    func hasInScope(_ target: HTMLName, _ scope: Scope = .regular) -> Bool { hasInScope(scope) { $0 == target } }
+    mutating func hasInScope(_ target: HTMLName, _ scope: Scope = .regular) -> Bool {
+        hasInScope(scope) { $0 == target }
+    }
 
-    func hasInScope(_ node: Node, _ scope: Scope = .regular) -> Bool {
+    mutating func hasInScope(_ node: Node, _ scope: Scope = .regular) -> Bool {
         var index = stack.count - 1
         while index >= 0 {
             if stack[index] == node { return true }
@@ -212,7 +214,12 @@ extension HTMLTreeBuilder {
     }
 
     /// Whether the stack has a `template` element.
-    var hasTemplateOnStack: Bool { stack.contains { isHTML($0, .template) } }
+    var hasTemplateOnStack: Bool {
+        mutating get {
+            for node in stack where isHTML(node, .template) { return true }
+            return false
+        }
+    }
 }
 
 extension HTMLTreeBuilder {

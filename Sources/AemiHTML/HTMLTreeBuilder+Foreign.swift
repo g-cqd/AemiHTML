@@ -1,7 +1,7 @@
 internal import AemiKernel
 
 extension HTMLTreeBuilder {
-    func isMathMLTextIntegrationPoint(_ node: Node) -> Bool {
+    mutating func isMathMLTextIntegrationPoint(_ node: Node) -> Bool {
         guard space(of: node) == .mathml else { return false }
         switch name(of: node) {
             case .mi, .mo, .mn, .ms, .mtext: return true
@@ -9,7 +9,7 @@ extension HTMLTreeBuilder {
         }
     }
 
-    func isHTMLIntegrationPoint(_ node: Node) -> Bool {
+    mutating func isHTMLIntegrationPoint(_ node: Node) -> Bool {
         switch space(of: node) {
             case .html: return false
             case .mathml: return name(of: node) == .annotationXml && htmlIntegrationAnnotations.contains(node.raw)
@@ -42,7 +42,7 @@ extension HTMLTreeBuilder {
         }
     }
 
-    private func breaksOut(_ token: BuilderToken) -> Bool {
+    private mutating func breaksOut(_ token: BuilderToken) -> Bool {
         switch token.name {
             case .b, .big, .blockquote, .body, .br, .center, .code, .dd, .div, .dl, .dt, .em, .embed, .h1, .h2, .h3,
                 .h4, .h5, .h6, .head, .hr, .i, .img,

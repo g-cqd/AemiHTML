@@ -28,14 +28,18 @@ for token in tokens.tokens {
 ## Speed
 
 `Benchmarks/Compare` runs 15 real pages (the HTML Standard, Wikipedia, MDN, GitHub, news sites; 19.9 MB, downloaded by `Scripts/fetch-pages.sh`, never committed) through AemiHTML and other parsers, one thread, best of nine rounds of CPU
-time, Apple M3, at a load average of 3.5:
+time, Apple M3. The DOM table below was taken at a load average of 3.5, the tokenizer table at a load of 160 and more, so it gives ratios only:
 
-| Tokenizing only | MB/s | Tokens |
+| Tokenizing only | Relative speed | Tokens |
 |---|---:|---:|
-| **AemiHTML**, errors not collected | **257** | 1,195,936 |
-| html5ever 0.35 (Rust; it reports errors, as tokens) | 128 | 1,280,379 |
-| **AemiHTML**, errors collected | 170 | 1,195,936 |
-| Python `html.parser` (not the HTML5 algorithm) | 7 | 1,195,936 |
+| **AemiHTML**, errors not collected | **1.8 to 2.0 ×** | 1,195,936 |
+| **AemiHTML**, errors collected | 1.3 to 1.5 × | 1,195,936 |
+| html5ever 0.35 (Rust; it reports errors, as tokens) | 1 × | 1,280,646 |
+| Python `html.parser` (not the HTML5 algorithm) | about 0.05 × | 1,195,936 |
+
+Both tokenizers read the same text (5,751,516 bytes of it) and, driven the same way (the sink switches the tokenizer into RCDATA, RAWTEXT, script data and PLAINTEXT after the start tags that need it), produce the same tokens: `Benchmarks/Compare/differential.sh` writes each page's tokens as lines and
+diffs them, and **all 15 pages give 0 differing lines**. (An earlier table here compared against a sink that did not switch, which made html5ever tokenize scripts as markup and look 2 × slower than it is; it is withdrawn.) The absolute numbers of the last run, at a load average of 160 to 230 and so
+only fit for ratios, were 127 to 187 MB/s for AemiHTML and 63 to 105 for html5ever; they need a quiet machine.
 
 | Parsing to a DOM | MB/s | Nodes |
 |---|---:|---:|
@@ -60,3 +64,5 @@ so every pass is linear.
 ## Not here yet
 
 The HTML-to-Markdown and plain-text extractors ADHTML had: see `docs/roadmap.md`.
+
+Extraction (`HTMLExtractor`) over the same 15 pages takes 0.2 s in all (19.9 MB in, 0.8 MB out); the 15.8 MB HTML Standard in one page takes 0.34 s and gives 6.1 MB of Markdown in 24 sections.

@@ -1,14 +1,18 @@
-# AemiHTML roadmap
+# Roadmap
 
-Done: the tokenizer (`HTMLTokenizer`), checked against html5lib's tokenizer tests, tokens and error codes; a tape of tokens (`HTMLTokens`); the named and numeric character references; processing instructions.
+## Done
+- Tokenizer (13.2.5, 2026 text), checked against html5lib's tokenizer tests and, token for token, against html5ever on 15 real pages.
+- Tree builder (13.2.6): all insertion modes, adoption agency, foster parenting, templates, foreign content, quirks, fragments; 1,792 html5lib tree tests, eight known differences listed with reasons.
+- Arena document (`HTMLDocument`), iterative walks, bounded stack and formatting list, hostile and fuzz tests, allocation tests.
+- Extractors to Markdown and plain text, the page API (title, description, container, sections, links, images), read back with AemiMarkdown in tests.
+- Benchmarks against Lexbor, html5ever, parse5, `html.parser`.
 
-Next, in this order, each with its own measure before it is called done:
-
-1. **Tree construction** (13.2.6): the insertion modes and the adoption agency algorithm, on an explicit stack, into a tape DOM (a preorder `[UInt64]` with the subtree's end in a container's `low`, as `TapeSlot` documents,
-   which is the layout ADHTML's `HTMLTape` had). Checked against the tree-construction tests, which html5lib no longer keeps: they are maintained in web-platform-tests (`html/syntax/parsing`, per html5lib-tests' README), so the fetch script gains that source and a pinned commit; the case count is to be measured then. The recursive `HTMLNode` walk of ADHTML does not come back.
-2. **Extractors**: HTML to plain text and to Markdown (headings, paragraphs, lists, links, code, tables, emphasis; scripts, styles, navigation and hidden elements dropped), which is the consumer roadmap 0139 waited for (a fetch tool for ask).
-   Round trip as a test: the Markdown AemiMarkdown parses to the structure the HTML had.
-3. **Streaming**: feed the tokenizer in chunks (a fetched page arrives that way); the state machine already keeps all its state in `HTMLTokenizer`, the open question is a token that spans two chunks.
-4. **Encoding sniffing** (13.2.3.2): BOM, `<meta charset>`, windows-1252 as the default; today the input is UTF-8.
-5. **AemiMarkdown's HTML**: its inline-HTML and HTML-block scanners are hand-written to CommonMark 4.6 and 6.6, and need not change; this package is for a consumer that needs the tree.
-6. **Research queue**: `g-cqd/research` has the notes on SIMD tokenization (Mytkowicz et al., Langdale and Lemire) that bear on the tokenizer's next 2x.
+## Next
+- Re-take the benchmark on a quiet machine and replace the ratios by numbers.
+- Chunked input: feed bytes as they arrive (the tokenizer is resumable; the tree builder's batches are not yet fed across chunk boundaries). A test that every split of a document gives the same tree.
+- Encoding sniffing (BOM, `<meta charset>`, prescan) for pages that are not UTF-8.
+- Web-platform-tests' tree-construction files (the html5lib copy is frozen).
+- `<selectedcontent>`; the tree builder's own parse errors.
+- Boilerplate by link density and text density (research, topic 12) as a fallback when a page names no container.
+- A preorder tape view of the arena, for scans that do not need links.
+- A `fetch` tool in ask on top of `HTMLExtractor` (ask roadmap 0139).

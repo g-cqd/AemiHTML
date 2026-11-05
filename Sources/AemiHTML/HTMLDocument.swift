@@ -74,6 +74,10 @@ public struct HTMLDocument: Sendable {
     public internal(set) var doctype = Node.none
     /// The parse errors of the tokenizer, when they were asked for (the tree builder's are not reported).
     public internal(set) var errors: [HTMLTokens.Error] = []
+    /// The encoding the bytes were decoded with (`HTMLParser.parse(encoded:)`); UTF-8 for a document parsed from UTF-8 bytes.
+    public internal(set) var encoding = HTMLEncoding.utf8
+    /// The encoding the first `meta` that declared one named, after the standard's mapping (UTF-16 to UTF-8, x-user-defined to windows-1252); what makes a parse start again when the encoding was only a guess.
+    var declaredEncoding: HTMLEncoding?
     /// For a fragment parse, the root `html` element whose children are the result.
     public internal(set) var fragmentRoot = Node.none
 

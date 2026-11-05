@@ -12,6 +12,20 @@ public enum HTMLExtractor {
         return extract(HTMLParser.parse(html, options: parserOptions), options: options)
     }
 
+    /// The page in the bytes of a file or a response, in whatever encoding: the encoding is sniffed as `HTMLParser.parse(encoded:)` does, with the transport layer's `charset` if there is one.
+    public static func extract(
+        encoded bytes: [UInt8],
+        transportEncoding: String? = nil,
+        options: HTMLExtractOptions = HTMLExtractOptions()
+    ) -> HTMLExtractedPage {
+        var parserOptions = HTMLParser.Options()
+        parserOptions.scripting = options.scripting
+        return extract(
+            HTMLParser.parse(encoded: bytes, transportEncoding: transportEncoding, options: parserOptions),
+            options: options
+        )
+    }
+
     public static func extract(_ html: String, options: HTMLExtractOptions = HTMLExtractOptions()) -> HTMLExtractedPage
     {
         extract(Array(html.utf8), options: options)

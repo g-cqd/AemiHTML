@@ -70,6 +70,8 @@ struct HTMLTreeBuilder {
     var htmlIntegrationAnnotations: Set<Int32> = []
     /// Set when a `selectedcontent` element was made: the document is given its copies of the selected option at the end.
     var sawSelectedContent = false
+    /// The first encoding a `meta` in the head declared (13.2.6.4.4: "change the encoding").
+    var declaredEncoding: HTMLEncoding?
     var cursor = 0
     var reachedEnd = false
 

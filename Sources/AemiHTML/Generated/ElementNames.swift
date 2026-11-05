@@ -144,7 +144,12 @@ enum HTMLName: UInt16, Sendable {
         guard bytes.count <= 8 else { return bytes.count <= 15 ? lookupLong(bytes) : .unknown }
         var key: UInt64 = 0
         for byte in bytes { key = key << 8 | UInt64(byte) }
-        switch bytes.count {
+        return lookup(key: key, count: bytes.count)
+    }
+
+    /// The name for the `count` bytes (at most 8) packed big-endian in `key`: what the builder asks without making a slice of the bytes.
+    static func lookup(key: UInt64, count: Int) -> HTMLName {
+        switch count {
             case 1:
                 switch key {
                     case 0x61: return .a

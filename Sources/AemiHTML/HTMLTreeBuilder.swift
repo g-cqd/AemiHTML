@@ -116,7 +116,7 @@ struct HTMLTreeBuilder {
                     cursor += 1
                 case HTMLTokens.Tag.startTag, HTMLTokens.Tag.endTag:
                     let isStart = tag == HTMLTokens.Tag.startTag
-                    let name = HTMLName.lookup(tokenizer.out.bytes(ofSlot: cursor + 1))
+                    let name = tokenizer.out.name(ofSlot: cursor + 1)
                     let closing = TapeSlot.aux(slot) & HTMLTokens.selfClosingFlag != 0
                     let token = BuilderToken(
                         kind: isStart ? .startTag : .endTag,

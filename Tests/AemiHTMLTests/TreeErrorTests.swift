@@ -262,10 +262,10 @@ struct TreeErrorTests {
 /// the *number* of errors in a case is compared, not their names. Of the 1,600 cases without a fragment, the counts agree in all but ten, and every one of the ten has a reason.
 @Suite(
     "The tree builder's errors against html5lib's lists",
-    .enabled(if: !Html5libTree.files.isEmpty, "run Scripts/fetch-html5lib.sh")
+    .enabled(if: !Html5libTree.files(in: Html5libTree.frozenDirectory).isEmpty, "run Scripts/fetch-html5lib.sh")
 )
 struct TreeErrorCountTests {
-    /// Cases whose count differs, and why: five new `webkit02` cases whose files list no errors at all; three with `<?...>`, which is a processing instruction now and no error; `<nobr><table><marquee></table>`,
+    /// (Against the frozen copy of html5lib's tests, whose cases list their errors; the copy web-platform-tests keeps lists none for many.) Cases whose count differs, and why: five new `webkit02` cases whose files list no errors at all; three with `<?...>`, which is a processing instruction now and no error; `<nobr><table><marquee></table>`,
     /// where html5lib counts an element left open that the standard does not; `<math></html>`, where it counts the same end tag twice.
     static let explained: Set<String> = [
         "webkit02.dat#45", "webkit02.dat#46", "webkit02.dat#47", "webkit02.dat#48", "webkit02.dat#49",
@@ -276,8 +276,8 @@ struct TreeErrorCountTests {
         var total = 0
         var unexplained: [String] = []
         var stale: [String] = []
-        for file in Html5libTree.files {
-            for test in Html5libTree.cases(in: file) where test.fragment == nil {
+        for file in Html5libTree.files(in: Html5libTree.frozenDirectory) {
+            for test in Html5libTree.cases(in: file, from: Html5libTree.frozenDirectory) where test.fragment == nil {
                 var options = HTMLParser.Options()
                 options.collectsErrors = true
                 if let scripting = test.scripting { options.scripting = scripting }

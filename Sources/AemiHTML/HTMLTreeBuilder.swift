@@ -68,6 +68,8 @@ struct HTMLTreeBuilder {
     var nameOverride: (HTMLName, String)?
     /// The `annotation-xml` elements whose start tag said `encoding=text/html` or `application/xhtml+xml`: HTML integration points.
     var htmlIntegrationAnnotations: Set<Int32> = []
+    /// Set when a `selectedcontent` element was made: the document is given its copies of the selected option at the end.
+    var sawSelectedContent = false
     var cursor = 0
     var reachedEnd = false
 

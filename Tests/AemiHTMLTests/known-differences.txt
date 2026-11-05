@@ -4,7 +4,3 @@ html5test-com.dat#12 processing instructions: since 2026 `<?` opens a processing
 tests1.dat#40 processing instructions: `<?` at the end of the input is dropped (eof-in-processing-instruction); the old test expects the comment `?`
 tests1.dat#44 processing instructions: target COMMENT, no data; the old test expects the comment `?COMMENT?`
 tests1.dat#47 processing instructions: target COM--MENT (hyphens are allowed in a target); the old test expects a comment
-webkit02.dat#45 the `selectedcontent` element mirrors the selected option's content into itself: DOM behaviour of that element, not an algorithm of 13.2.6
-webkit02.dat#46 as webkit02.dat#45
-webkit02.dat#47 as webkit02.dat#45
-webkit02.dat#48 as webkit02.dat#45

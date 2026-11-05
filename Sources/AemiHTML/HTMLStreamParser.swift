@@ -18,7 +18,20 @@ public struct HTMLStreamParser {
     public init(options: HTMLParser.Options = HTMLParser.Options()) {
         engine =
             options.collectsErrors
-            ? StreamEngine<LoudErrors>(options) : StreamEngine<QuietErrors>(options)
+            ? StreamEngine<LoudErrors>(options, fragment: nil) : StreamEngine<QuietErrors>(options, fragment: nil)
+    }
+
+    /// A parser for the children of an element named `context` in `namespace` (the HTML fragment parsing algorithm, 13.4: what `innerHTML` does), given a piece at a time. The result is in `HTMLDocument.fragmentRoot`, as `HTMLParser.parseFragment` leaves it, and is the same wherever the pieces are cut.
+    public init(
+        fragmentContext context: String,
+        namespace: HTMLDocument.Namespace = .html,
+        options: HTMLParser.Options = HTMLParser.Options()
+    ) {
+        let fragment = StreamFragment(context: context, namespace: namespace)
+        engine =
+            options.collectsErrors
+            ? StreamEngine<LoudErrors>(options, fragment: fragment)
+            : StreamEngine<QuietErrors>(options, fragment: fragment)
     }
 
     /// Gives the parser the next piece of the document (UTF-8; for other encodings, decode first).
@@ -26,6 +39,12 @@ public struct HTMLStreamParser {
 
     /// The document, once the last piece has been fed. The parser cannot be used afterwards.
     public mutating func finish() -> HTMLDocument { engine.finish() }
+}
+
+/// What makes a stream a fragment parse: the context element's name and namespace.
+struct StreamFragment {
+    var context: String
+    var namespace: HTMLDocument.Namespace
 }
 
 protocol StreamingEngine {
@@ -44,10 +63,18 @@ struct StreamEngine<Reporting: TreeErrorReporting>: StreamingEngine {
     private var isFinished = false
     private var scannedErrors = 0
 
-    init(_ options: HTMLParser.Options) {
+    init(_ options: HTMLParser.Options, fragment: StreamFragment?) {
         var tokenizerOptions = HTMLTokenizer.Options()
         tokenizerOptions.switchesContentModel = false
         tokenizerOptions.collectsErrors = options.collectsErrors
+        var name = HTMLName.unknown
+        if let fragment {
+            (name, tokenizerOptions.initialState) = HTMLParser.fragmentContext(
+                fragment.context,
+                namespace: fragment.namespace,
+                options: options
+            )
+        }
         var tokenizer = HTMLTokenizer(input: [], options: tokenizerOptions, out: HTMLTokens(source: []))
         tokenizer.isFinal = false
         builder = HTMLTreeBuilder<Reporting>(
@@ -55,6 +82,7 @@ struct StreamEngine<Reporting: TreeErrorReporting>: StreamingEngine {
             scripting: options.scripting,
             maxDepth: options.maxDepth
         )
+        if let fragment { builder.setUpFragment(context: fragment.context, name: name, namespace: fragment.namespace) }
     }
 
     mutating func feed(_ chunk: [UInt8]) {

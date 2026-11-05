@@ -20,11 +20,17 @@ let aemiDependency: Package.Dependency = .package(
     revision: "4879ca7522a6277e9425c69309a801de43b57771"
 )
 
+// AemiMarkdown reads the Markdown the extractors write, to check that it means what the page did. A test-only dependency: a package that depends on AemiHTML does not fetch it.
+let markdownDependency: Package.Dependency = .package(
+    url: "https://github.com/g-cqd/AemiMarkdown.git",
+    revision: "15c730baa5e89b5c70b1142e67fa2578c8c3989e"
+)
+
 let package = Package(
     name: "AemiHTML",
     platforms: [.macOS(.v15), .iOS(.v18), .tvOS(.v18), .watchOS(.v11), .visionOS(.v2)],
     products: [.library(name: "AemiHTML", targets: ["AemiHTML"])],
-    dependencies: [aemiDependency],
+    dependencies: [aemiDependency, markdownDependency],
     targets: [
         .target(
             name: "AemiHTML",
@@ -36,7 +42,10 @@ let package = Package(
         ),
         .testTarget(
             name: "AemiHTMLTests",
-            dependencies: ["AemiHTML", .product(name: "AemiTestKit", package: "aemi")],
+            dependencies: [
+                "AemiHTML", .product(name: "AemiTestKit", package: "aemi"),
+                .product(name: "AemiMarkdown", package: "AemiMarkdown")
+            ],
             swiftSettings: strictSettings
         )
     ]

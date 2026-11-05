@@ -19,15 +19,19 @@ enum HTMLName: UInt16, Sendable {
     case body
     case br
     case button
+    case canvas
     case caption
     case center
+    case cite
     case code
     case col
     case colgroup
     case datalist
     case dd
+    case del
     case desc
     case details
+    case dfn
     case dialog
     case dir
     case div
@@ -60,6 +64,8 @@ enum HTMLName: UInt16, Sendable {
     case image
     case img
     case input
+    case ins
+    case kbd
     case keygen
     case label
     case li
@@ -97,6 +103,7 @@ enum HTMLName: UInt16, Sendable {
     case rtc
     case ruby
     case s
+    case samp
     case script
     case search
     case section
@@ -182,9 +189,13 @@ enum HTMLName: UInt16, Sendable {
                 switch key {
                     case 0x626967: return .big
                     case 0x636f6c: return .col
+                    case 0x64656c: return .del
+                    case 0x64666e: return .dfn
                     case 0x646972: return .dir
                     case 0x646976: return .div
                     case 0x696d67: return .img
+                    case 0x696e73: return .ins
+                    case 0x6b6264: return .kbd
                     case 0x6e6176: return .nav
                     case 0x707265: return .pre
                     case 0x727463: return .rtc
@@ -201,6 +212,7 @@ enum HTMLName: UInt16, Sendable {
                     case 0x6172_6561: return .area
                     case 0x6261_7365: return .base
                     case 0x626f_6479: return .body
+                    case 0x6369_7465: return .cite
                     case 0x636f_6465: return .code
                     case 0x6465_7363: return .desc
                     case 0x666f_6e74: return .font
@@ -214,6 +226,7 @@ enum HTMLName: UInt16, Sendable {
                     case 0x6d65_7461: return .meta
                     case 0x6e6f_6272: return .nobr
                     case 0x7275_6279: return .ruby
+                    case 0x7361_6d70: return .samp
                     case 0x7370_616e: return .span
                     default: return .unknown
                 }
@@ -241,6 +254,7 @@ enum HTMLName: UInt16, Sendable {
                 switch key {
                     case 0x6170_706c_6574: return .applet
                     case 0x6275_7474_6f6e: return .button
+                    case 0x6361_6e76_6173: return .canvas
                     case 0x6365_6e74_6572: return .center
                     case 0x6469_616c_6f67: return .dialog
                     case 0x6669_6775_7265: return .figure

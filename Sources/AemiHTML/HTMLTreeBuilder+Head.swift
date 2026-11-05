@@ -168,6 +168,7 @@ extension HTMLTreeBuilder {
                 insertHTMLElement(token)
                 popJustInserted()
                 acknowledge(&token)
+                if token.name == .meta, declaredEncoding == nil { declaredEncoding = encodingDeclared(by: token) }
             case .title: parseRawText(token, rcdata: true)
             case .noscript where scripting: parseRawText(token, rcdata: false)
             case .noframes, .style: parseRawText(token, rcdata: false)
@@ -289,5 +290,24 @@ extension HTMLTreeBuilder {
                 return .reprocess
         }
         return .consumed
+    }
+}
+
+extension HTMLTreeBuilder {
+    /// What a `meta` start tag declares (13.2.6.4.4): a `charset` attribute that names an encoding, else a `content` attribute with `charset=` in it, when `http-equiv` is `content-type`. UTF-16 is taken for UTF-8 and x-user-defined for windows-1252, as the standard says.
+    func encodingDeclared(by token: BuilderToken) -> HTMLEncoding? {
+        var found: HTMLEncoding?
+        if let label = tokenAttribute(token, "charset"), let encoding = HTMLEncoding(label: label) {
+            found = encoding
+        } else if let equiv = tokenAttribute(token, "http-equiv"), equiv.count == 12,
+            equiv.map({ $0 >= 0x41 && $0 <= 0x5A ? $0 + 0x20 : $0 }).elementsEqual("content-type".utf8),
+            let content = tokenAttribute(token, "content")
+        {
+            found = HTMLEncodingSniffer.encodingInContent(Array(content))
+        }
+        guard let encoding = found else { return nil }
+        if encoding == .utf16BE || encoding == .utf16LE { return .utf8 }
+        if encoding == .xUserDefined { return .windows1252 }
+        return encoding
     }
 }

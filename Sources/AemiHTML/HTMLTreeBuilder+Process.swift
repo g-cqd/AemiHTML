@@ -129,5 +129,6 @@ extension HTMLTreeBuilder {
         document.scratch = tokenizer.out.scratch
         document.errors = tokenizer.out.errors
         if sawSelectedContent { document.updateSelectedContents() }
+        document.declaredEncoding = declaredEncoding
     }
 }

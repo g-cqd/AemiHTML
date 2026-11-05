@@ -100,6 +100,8 @@ public struct HTMLTokenizer {
         return bytes
     }
 
+    static func isWellFormedUTF8(_ bytes: [UInt8]) -> Bool { AemiKernels.firstInvalidUTF8(bytes) == nil }
+
     /// CR LF and CR become LF (13.2.3.5), before tokenization.
     static func normalizedNewlines(_ bytes: [UInt8]) -> [UInt8] {
         var result: [UInt8] = []

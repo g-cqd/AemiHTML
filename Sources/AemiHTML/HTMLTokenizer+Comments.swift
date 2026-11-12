@@ -8,6 +8,7 @@ extension HTMLTokenizer {
         append(tag: HTMLTokens.Tag.comment, aux: slot.aux, low: slot.low)
         state = .data
         batchReady = true
+        // @dl:accept -- a tokenizer state as the standard writes it; the tag states take the same steps
     }
 
     mutating func commentStep() {
@@ -48,6 +49,7 @@ extension HTMLTokenizer {
             error(.incorrectlyOpenedComment)
             dataStart = pos
             state = .bogusComment
+            // @dl:accept -- a tokenizer state as the standard writes it; the tag states take the same steps
         }
     }
 

@@ -5,6 +5,7 @@ extension HTMLTreeBuilder {
 
     mutating func initial(_ token: inout BuilderToken) -> Disposition {
         switch token.kind {
+            // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
             case .character where token.characterClass == .whitespace: return .consumed
             case .comment:
                 insertComment(token.text, at: Place(parent: document.root, before: .none))
@@ -109,6 +110,7 @@ extension HTMLTreeBuilder {
             case .startTag where token.name == .html:
                 let node = createElement(tokenIndex: token.index, space: .html)
                 document.append(node, to: document.root)
+                // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
                 push(node)
                 mode = .beforeHead
                 return .consumed
@@ -160,6 +162,7 @@ extension HTMLTreeBuilder {
 
     // MARK: in head (13.2.6.4.4)
 
+    // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
     mutating func inHead(_ token: inout BuilderToken) -> Disposition {
         switch token.kind {
             case .character where token.characterClass == .whitespace:

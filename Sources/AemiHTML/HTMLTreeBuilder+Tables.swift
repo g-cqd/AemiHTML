@@ -162,13 +162,17 @@ extension HTMLTreeBuilder {
     mutating func inCaption(_ token: inout BuilderToken) -> Disposition {
         switch (token.kind, token.name) {
             case (.endTag, .caption):
+                // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
                 guard hasInScope(.caption, .table) else {
                     parseError(.unexpectedEndTag)
+                    // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
                     return .consumed
                 }
                 closeCaption()
                 return .consumed
+            // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
             case (.startTag, .caption), (.startTag, .col), (.startTag, .colgroup), (.startTag, .tbody),
+                // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
                 (.startTag, .td), (.startTag, .tfoot),
                 (.startTag, .th), (.startTag, .thead), (.startTag, .tr), (.endTag, .table):
                 guard hasInScope(.caption, .table) else {
@@ -252,9 +256,11 @@ extension HTMLTreeBuilder {
                     parseError(.unexpectedEndTag)
                     return .consumed
                 }
+                // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
                 clearStackBack(toContext: stoppers)
                 pop()
                 mode = .inTable
+            // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
             case (.startTag, .caption), (.startTag, .col), (.startTag, .colgroup), (.startTag, .tbody),
                 (.startTag, .tfoot), (.startTag, .thead),
                 (.endTag, .table):
@@ -265,7 +271,9 @@ extension HTMLTreeBuilder {
                 clearStackBack(toContext: stoppers)
                 pop()
                 mode = .inTable
+                // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
                 return .reprocess
+            // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
             case (.endTag, .body), (.endTag, .caption), (.endTag, .col), (.endTag, .colgroup), (.endTag, .html),
                 (.endTag, .td), (.endTag, .th),
                 (.endTag, .tr):

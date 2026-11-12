@@ -19,12 +19,14 @@ extension HTMLTreeBuilder {
                 tokenError(token, onlyFirst: true)
                 mode = .inBody
                 return .reprocess
+        // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
         }
         return .consumed
     }
 
     // MARK: in frameset (13.2.6.4.18)
 
+    // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
     mutating func inFrameset(_ token: inout BuilderToken) -> Disposition {
         switch token.kind {
             case .character where token.characterClass == .whitespace: insertCharacters(token.text)
@@ -71,6 +73,7 @@ extension HTMLTreeBuilder {
 
     // MARK: after after body (13.2.6.4.20)
 
+    // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
     mutating func afterAfterBody(_ token: inout BuilderToken) -> Disposition {
         switch token.kind {
             case .comment: insertComment(token.text, at: Place(parent: document.root, before: .none))

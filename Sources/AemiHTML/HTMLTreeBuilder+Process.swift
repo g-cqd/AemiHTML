@@ -86,6 +86,7 @@ extension HTMLTreeBuilder {
 
     mutating func handle(_ token: inout BuilderToken) -> Disposition {
         switch mode {
+            // @dl:accept -- one dispatch per insertion mode
             case .initial: initial(&token)
             case .beforeHTML: beforeHTML(&token)
             case .beforeHead: beforeHead(&token)
@@ -232,5 +233,4 @@ extension HTMLTreeBuilder {
 }
 
 extension HTMLTreeBuilder {
-    @inline(__always) func noError(_ kind: HTMLTreeError) {}
 }

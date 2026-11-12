@@ -44,13 +44,7 @@ public struct HTMLTokens: Sendable {
     public var tokens: Tokens { Tokens(tokens: self) }
 
     /// The bytes of a text-shaped slot.
-    func bytes(ofSlot slot: Int) -> ArraySlice<UInt8> {
-        let value = tape[slot]
-        let aux = Int(TapeSlot.aux(value))
-        let low = TapeSlot.low(value)
-        let length = aux >> 1
-        return aux & 1 == 0 ? source[low ..< low + length] : scratch[low ..< low + length]
-    }
+    func bytes(ofSlot slot: Int) -> ArraySlice<UInt8> { bytes(range: tape[slot]) }
 
     /// The element name the text-shaped slot spells, found without making a slice of the bytes (a slice holds its array, and holding and letting go of it showed in the profile).
     func name(ofSlot slot: Int) -> HTMLName {
@@ -71,12 +65,7 @@ public struct HTMLTokens: Sendable {
     }
 
     /// The bytes of a slot-shaped range: `aux` is the length shifted left one and the scratch flag, `low` the offset.
-    func bytes(range value: UInt64) -> ArraySlice<UInt8> {
-        let aux = Int(TapeSlot.aux(value))
-        let low = TapeSlot.low(value)
-        let length = aux >> 1
-        return aux & 1 == 0 ? source[low ..< low + length] : scratch[low ..< low + length]
-    }
+    func bytes(range value: UInt64) -> ArraySlice<UInt8> { TapeRange.bytes(value, source: source, scratch: scratch) }
 
     /// Appends a copy of the bytes of `range` to the scratch. A range that is itself in the scratch is copied by index: a slice of the array kept while the array is appended to would make every append copy the whole array.
     mutating func appendCopy(of range: UInt64) {

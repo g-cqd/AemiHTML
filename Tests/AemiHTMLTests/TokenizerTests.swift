@@ -90,7 +90,8 @@ struct TokenizerTests {
             let big = Array(String(repeating: pattern, count: 200_000).utf8)
             let start = ContinuousClock.now
             _ = HTMLTokenizer.tokenize(big)
-            #expect(ContinuousClock.now - start < .seconds(20), "\(pattern)")
+            // A ceiling against quadratic time, not a measure: linear, 200,000 repeats take well under a second; quadratic, hours.
+            #expect(ContinuousClock.now - start < .seconds(20), "\(pattern)")  // lint:allow
         }
     }
 }

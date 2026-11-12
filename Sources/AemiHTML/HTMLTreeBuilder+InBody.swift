@@ -16,6 +16,7 @@ extension HTMLTreeBuilder {
                         insertCharacters(token.text)
                         framesetOK = false
                 }
+            // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
             case .comment: insertComment(token.text)
             case .processingInstruction: insertProcessingInstruction(token)
             case .doctype: parseError(.unexpectedDoctype)
@@ -85,6 +86,7 @@ extension HTMLTreeBuilder {
                 document.detach(stack[1])
                 stack.removeSubrange(1...)
                 insertHTMLElement(token)
+                // @dl:accept -- an insertion mode as the standard writes it, step for step; the modes repeat the same steps
                 mode = .inFrameset
             case .address, .article, .aside, .blockquote, .center, .details, .dialog, .dir, .div, .dl, .fieldset,
                 .figcaption, .figure, .footer, .header,

@@ -55,13 +55,6 @@ extension HTMLEncodingSniffer {
         return nil
     }
 
-    /// The position after the `-->` of the comment that starts at `start` (its dashes may be the ones that opened it), or nil if the bytes end first.
-    private static func endOfComment(_ bytes: [UInt8], from start: Int, end: Int) -> Int? {
-        var scan = start + 4
-        while scan < end, !(bytes[scan] == 0x3E && bytes[scan - 1] == 0x2D && bytes[scan - 2] == 0x2D) { scan += 1 }
-        return scan < end ? scan + 1 : nil
-    }
-
     private enum MetaOutcome {
         case found(HTMLEncoding)
         case keepGoing

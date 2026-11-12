@@ -10,14 +10,17 @@ extension HTMLTokenizer {
     }
 
     /// The content models the tree builder switches to after a start tag (13.2.6.2 and the rules of the insertion modes).
-    mutating func switchTo(_ model: InitialState) {
+    mutating func switchTo(_ model: InitialState) { state = Self.state(for: model) }
+
+    /// The state a content model starts in.
+    static func state(for model: InitialState) -> State {
         switch model {
-            case .data: state = .data
-            case .rcdata: state = .rcdata
-            case .rawtext: state = .rawtext
-            case .scriptData: state = .scriptData
-            case .plaintext: state = .plaintext
-            case .cdataSection: state = .cdata
+            case .data: .data
+            case .rcdata: .rcdata
+            case .rawtext: .rawtext
+            case .scriptData: .scriptData
+            case .plaintext: .plaintext
+            case .cdataSection: .cdata
         }
     }
 }

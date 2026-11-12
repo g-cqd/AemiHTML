@@ -161,7 +161,9 @@ extension HTMLTokenizer {
 
     static func encode(_ value: UInt32, into bytes: inout [UInt8]) {
         let scalar = Unicode.Scalar(value) ?? "\u{FFFD}"
-        for unit in UTF8.encode(scalar) ?? UTF8.encode("\u{FFFD}")! { bytes.append(unit) }
+        // U+FFFD's UTF-8 when a scalar has none (no `Unicode.Scalar` lacks one, but the API says it may).
+        guard let units = UTF8.encode(scalar) else { return bytes.append(contentsOf: [0xEF, 0xBF, 0xBD]) }
+        for unit in units { bytes.append(unit) }
     }
 
     /// The `aux` and `low` of a name for `from ..< to` of the source: the source itself if it has no upper-case letter and no NUL, else a lower-case copy in the scratch, NUL as U+FFFD.

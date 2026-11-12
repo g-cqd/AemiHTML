@@ -138,13 +138,6 @@ public struct HTMLTokenizer {
         allowsCDATA = options.allowsCDATA
         self.out = out
         lastStartTagRange = self.out.intern(options.lastStartTag)
-        switch options.initialState {
-            case .data: state = .data
-            case .rcdata: state = .rcdata
-            case .rawtext: state = .rawtext
-            case .scriptData: state = .scriptData
-            case .plaintext: state = .plaintext
-            case .cdataSection: state = .cdata
-        }
+        state = Self.state(for: options.initialState)
     }
 }

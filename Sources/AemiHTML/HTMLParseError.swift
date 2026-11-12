@@ -1,5 +1,7 @@
 /// The parse errors of the tokenizer, named as the WHATWG HTML Standard names them (its "Parse errors" section); the raw value is the spec's code.
+// @dl:accept -- one case per code of the standard's parse errors
 public enum HTMLParseError: String, Sendable, CaseIterable {
+    // @dl:accept -- one case per code of the standard's parse errors
     case abruptClosingOfEmptyComment = "abrupt-closing-of-empty-comment"
     case abruptDoctypePublicIdentifier = "abrupt-doctype-public-identifier"
     case abruptDoctypeSystemIdentifier = "abrupt-doctype-system-identifier"

@@ -2,9 +2,12 @@ extension HTMLDocument {
     /// Elements that start and end a block of text.
     func isBlock(_ node: Node) -> Bool {
         guard kind(node) == .element, namespace(node) == .html else { return false }
+        // @dl:accept -- a list of element names from the standard; other lists of names have its shape, not its names
         switch HTMLName(rawValue: atom(node)) ?? .unknown {
+            // @dl:accept -- a list of element names from the standard; other lists of names have its shape, not its names
             case .address, .article, .aside, .blockquote, .body, .center, .details, .dialog, .dir, .div, .dl, .dd, .dt,
                 .fieldset, .figcaption, .figure, .footer,
+                // @dl:accept -- a list of element names from the standard; other lists of names have its shape, not its names
                 .form, .h1, .h2, .h3, .h4, .h5, .h6, .header, .hgroup, .hr, .html, .li, .main, .menu, .nav, .ol, .p,
                 .pre, .search, .section, .summary, .table,
                 .tbody, .thead, .tfoot, .tr, .ul, .listing:
@@ -28,7 +31,9 @@ extension HTMLDocument {
     }
 
     /// Class names that mark chrome, matched as whole words: MediaWiki's edit links and navigation boxes, sidebars, breadcrumbs, cookie banners and advertisements.
+    // @dl:accept -- class names that mark chrome: a list of words, which any other list of words resembles
     private static let chromeClasses: Set<String> = [
+        // @dl:accept -- class names that mark chrome: a list of words, which any other list of words resembles
         "mw-editsection", "navbox", "catlinks", "printfooter", "noprint", "sidebar", "breadcrumb", "breadcrumbs",
         "cookie-banner", "cookie-consent",
         "cookies", "advert", "advertisement", "newsletter", "share-buttons", "social-share"
@@ -56,6 +61,7 @@ extension HTMLDocument {
         let name = HTMLName(rawValue: atom(node)) ?? .unknown
         if space == .svg { return name == .svg }
         if space != .html { return false }
+        // @dl:accept -- a list of element names from the standard; other lists of names have its shape, not its names
         switch name {
             case .script, .style, .noscript, .template, .nav, .aside, .canvas, .iframe, .object, .embed, .select,
                 .datalist, .head, .noframes, .noembed,

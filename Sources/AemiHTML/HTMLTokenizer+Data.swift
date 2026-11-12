@@ -33,22 +33,33 @@ extension HTMLTokenizer {
         if isFinal { done = true } else { needMore = true }
     }
 
-    /// 13.2.5.1: text up to `<`, `&` or NUL.
-    mutating func dataState() {
-        let stop = find(Stops.data, from: pos)
+    /// The text up to `stop` emitted, and the position there; false when that used up the input.
+    @inline(__always)
+    private mutating func textRun(to stop: Int) -> Bool {
         emitText(pos, stop)
         pos = stop
         markAfterText()
         guard pos < count else {
             textUsedUp()
-            return
+            return false
         }
+        return true
+    }
+
+    /// An `&` in data or RCDATA: a character reference, or else the `&` as text.
+    @inline(__always)
+    private mutating func ampersandInText() {
+        guard !characterReference(inAttribute: false) else { return }
+        emitText(pos, pos + 1)
+        pos += 1
+    }
+
+    /// 13.2.5.1: text up to `<`, `&` or NUL.
+    mutating func dataState() {
+        let stop = find(Stops.data, from: pos)
+        guard textRun(to: stop) else { return }
         switch Int(input[pos]) {
-            case 0x26:
-                if !characterReference(inAttribute: false) {
-                    emitText(pos, pos + 1)
-                    pos += 1
-                }
+            case 0x26: ampersandInText()
             case 0x3C:
                 tagStart = pos
                 pos += 1
@@ -64,19 +75,9 @@ extension HTMLTokenizer {
     mutating func rawTextState() {
         let rcdata = state == .rcdata
         let stop = find(rcdata ? Stops.data : Stops.rawtext, from: pos)
-        emitText(pos, stop)
-        pos = stop
-        markAfterText()
-        guard pos < count else {
-            textUsedUp()
-            return
-        }
+        guard textRun(to: stop) else { return }
         switch Int(input[pos]) {
-            case 0x26:
-                if !characterReference(inAttribute: false) {
-                    emitText(pos, pos + 1)
-                    pos += 1
-                }
+            case 0x26: ampersandInText()
             case 0x3C:
                 if let end = appropriateEndTag(at: pos) {
                     tagStart = pos

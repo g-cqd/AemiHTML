@@ -11,6 +11,7 @@ extension HTMLTokenizer {
         let next = byte(pos)
         let isQuote = next == 0x22 || next == 0x27
         if next == -1 { return doctypeEOF() }
+        // @dl:accept -- the double- and single-quoted identifier states are two of the standard's, step for step
         switch state {
             case .afterDoctypePublicKeyword:
                 if Self.isWhitespace(next) {

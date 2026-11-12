@@ -2,45 +2,27 @@ extension HTMLDecoder {
     /// Shift_JIS (Encoding Standard 14.2): a lead byte and a trail byte, into the JIS X 0208 index; the lead bytes 0xF0 ... 0xF9 are the user-defined area (U+E000 ...).
     static func decodeShiftJIS(_ bytes: ArraySlice<UInt8>) -> [UInt8] {
         let index = EncodingIndexes.jis0208
-        var out: [UInt8] = []
-        out.reserveCapacity(bytes.count * 2)
-        var lead: UInt8 = 0
-        var position = bytes.startIndex
-        while position < bytes.endIndex {
-            let byte = bytes[position]
-            position += 1
-            if lead != 0 {
-                let first = Int(lead)
-                lead = 0
-                var found: UInt32?
-                if (0x40 ... 0x7E).contains(byte) || (0x80 ... 0xFC).contains(byte) {
-                    let offset = byte < 0x7F ? 0x40 : 0x41
-                    let leadOffset = first < 0xA0 ? 0x81 : 0xC1
-                    let pointer = (first - leadOffset) * 188 + Int(byte) - offset
-                    if (8836 ... 10715).contains(pointer) {
-                        found = UInt32(0xE000 - 8836 + pointer)
-                    } else if pointer >= 0, pointer < index.count, index[pointer] != none {
-                        found = index[pointer]
-                    }
-                }
-                if let found {
-                    put(found, &out)
-                } else {
-                    if byte < 0x80 { position -= 1 }
-                    put(0xFFFD, &out)
-                }
-            } else if byte <= 0x80 {
-                put(UInt32(byte), &out)
-            } else if byte >= 0xA1 && byte <= 0xDF {
-                put(0xFF61 - 0xA1 + UInt32(byte), &out)
-            } else if (0x81 ... 0x9F).contains(byte) || (0xE0 ... 0xFC).contains(byte) {
-                lead = byte
+        return decodeDoubleByte(bytes, single: shiftJISSingle) { first, byte, out in
+            guard (0x40 ... 0x7E).contains(byte) || (0x80 ... 0xFC).contains(byte) else { return false }
+            let offset = byte < 0x7F ? 0x40 : 0x41
+            let leadOffset = first < 0xA0 ? 0x81 : 0xC1
+            let pointer = (first - leadOffset) * 188 + Int(byte) - offset
+            if (8836 ... 10715).contains(pointer) {
+                put(UInt32(0xE000 - 8836 + pointer), &out)
+            } else if pointer >= 0, pointer < index.count, index[pointer] != none {
+                put(index[pointer], &out)
             } else {
-                put(0xFFFD, &out)
+                return false
             }
+            return true
         }
-        if lead != 0 { put(0xFFFD, &out) }
-        return out
+    }
+
+    /// A Shift_JIS byte with no lead before it: ASCII (and 0x80) as itself, half-width katakana, nil for a lead, else U+FFFD.
+    private static func shiftJISSingle(_ byte: UInt8) -> UInt32? {
+        if byte <= 0x80 { return UInt32(byte) }
+        if byte >= 0xA1 && byte <= 0xDF { return 0xFF61 - 0xA1 + UInt32(byte) }
+        return (0x81 ... 0x9F).contains(byte) || (0xE0 ... 0xFC).contains(byte) ? nil : 0xFFFD
     }
 
     /// EUC-JP (14.1): JIS X 0208 by two bytes, JIS X 0212 after 0x8F, half-width katakana after 0x8E.

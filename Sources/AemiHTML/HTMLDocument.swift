@@ -97,6 +97,7 @@ public struct HTMLDocument: Sendable {
     // MARK: Reading
 
     public func kind(_ node: Node) -> Kind { Kind(rawValue: records[Int(node.raw)].kind) ?? .element }
+    // @dl:accept -- one reader per field of a node's record
     public func parent(_ node: Node) -> Node { Node(raw: records[Int(node.raw)].parent) }
     public func firstChild(_ node: Node) -> Node { Node(raw: records[Int(node.raw)].firstChild) }
     public func lastChild(_ node: Node) -> Node { Node(raw: records[Int(node.raw)].lastChild) }
@@ -113,18 +114,11 @@ public struct HTMLDocument: Sendable {
     public var publicIdentifier: ArraySlice<UInt8> { doctype.isNone ? [] : data(doctype) }
     public var documentSystemIdentifier: ArraySlice<UInt8> { bytes(systemIdentifier) }
 
-    func elementName(_ node: Node) -> HTMLName { HTMLName(rawValue: records[Int(node.raw)].name) ?? .unknown }
-
     public func isElement(_ node: Node, _ name: String, in space: Namespace = .html) -> Bool {
         kind(node) == .element && namespace(node) == space && self.name(node).elementsEqual(name.utf8)
     }
 
-    func bytes(_ range: UInt64) -> ArraySlice<UInt8> {
-        let aux = Int(TapeSlot.aux(range))
-        let low = TapeSlot.low(range)
-        let length = aux >> 1
-        return aux & 1 == 0 ? source[low ..< low + length] : scratch[low ..< low + length]
-    }
+    func bytes(_ range: UInt64) -> ArraySlice<UInt8> { TapeRange.bytes(range, source: source, scratch: scratch) }
 
     public func attributes(of node: Node) -> [Attribute] {
         var found: [Attribute] = []

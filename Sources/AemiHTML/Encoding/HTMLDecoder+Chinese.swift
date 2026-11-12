@@ -32,93 +32,44 @@ extension HTMLDecoder {
             }
         }
         guard found >= 0 else { return nil }
+        // @dl:accept -- the end of one decoder and the start of the next, each the Encoding Standard's
         return ranges[found].codePoint + UInt32(pointer) - ranges[found].pointer
     }
 
     /// Big5 (12.1): the index, with four pointers that stand for a letter and a combining mark.
+    // @dl:accept -- each encoding reads its pairs by the Encoding Standard's own rule; the opening steps match, the ranges and indexes differ
     static func decodeBig5(_ bytes: ArraySlice<UInt8>) -> [UInt8] {
         let index = EncodingIndexes.big5
-        var out: [UInt8] = []
-        out.reserveCapacity(bytes.count * 2)
-        var lead: UInt8 = 0
-        var position = bytes.startIndex
-        while position < bytes.endIndex {
-            let byte = bytes[position]
-            position += 1
-            if lead != 0 {
-                let first = Int(lead)
-                lead = 0
-                var pointer = -1
-                if (0x40 ... 0x7E).contains(byte) || (0xA1 ... 0xFE).contains(byte) {
-                    pointer = (first - 0x81) * 157 + Int(byte) - (byte < 0x7F ? 0x40 : 0x62)
-                }
-                switch pointer {
-                    case 1133:
-                        put(0xCA, &out)
-                        put(0x304, &out)
-                    case 1135:
-                        put(0xCA, &out)
-                        put(0x30C, &out)
-                    case 1164:
-                        put(0xEA, &out)
-                        put(0x304, &out)
-                    case 1166:
-                        put(0xEA, &out)
-                        put(0x30C, &out)
-                    default:
-                        if pointer >= 0, pointer < index.count, index[pointer] != none {
-                            put(index[pointer], &out)
-                        } else {
-                            if byte < 0x80 { position -= 1 }
-                            put(0xFFFD, &out)
-                        }
-                }
-            } else if byte < 0x80 {
-                put(UInt32(byte), &out)
-            } else if byte >= 0x81, byte <= 0xFE {
-                lead = byte
-            } else {
-                put(0xFFFD, &out)
+        return decodeDoubleByte(bytes, single: asciiOrLead) { first, byte, out in
+            guard (0x40 ... 0x7E).contains(byte) || (0xA1 ... 0xFE).contains(byte) else { return false }
+            let pointer = (first - 0x81) * 157 + Int(byte) - (byte < 0x7F ? 0x40 : 0x62)
+            switch pointer {
+                case 1133, 1135, 1164, 1166:
+                    put(pointer < 1164 ? 0xCA : 0xEA, &out)
+                    put(pointer == 1133 || pointer == 1164 ? 0x304 : 0x30C, &out)
+                default:
+                    guard pointer < index.count, index[pointer] != none else { return false }
+                    put(index[pointer], &out)
             }
+            return true
         }
-        if lead != 0 { put(0xFFFD, &out) }
-        return out
+    }
+
+    /// A Big5 or EUC-KR byte with no lead before it: ASCII as itself, nil for a lead (0x81 ... 0xFE), else U+FFFD.
+    private static func asciiOrLead(_ byte: UInt8) -> UInt32? {
+        byte < 0x80 ? UInt32(byte) : (0x81 ... 0xFE).contains(byte) ? nil : 0xFFFD
     }
 
     /// EUC-KR (13.1): the index by two bytes.
     static func decodeEUCKR(_ bytes: ArraySlice<UInt8>) -> [UInt8] {
         let index = EncodingIndexes.eucKR
-        var out: [UInt8] = []
-        out.reserveCapacity(bytes.count * 2)
-        var lead: UInt8 = 0
-        var position = bytes.startIndex
-        while position < bytes.endIndex {
-            let byte = bytes[position]
-            position += 1
-            if lead != 0 {
-                let first = Int(lead)
-                lead = 0
-                var found: UInt32?
-                if byte >= 0x41, byte <= 0xFE {
-                    let pointer = (first - 0x81) * 190 + Int(byte) - 0x41
-                    if pointer < index.count, index[pointer] != none { found = index[pointer] }
-                }
-                if let found {
-                    put(found, &out)
-                } else {
-                    if byte < 0x80 { position -= 1 }
-                    put(0xFFFD, &out)
-                }
-            } else if byte < 0x80 {
-                put(UInt32(byte), &out)
-            } else if byte >= 0x81, byte <= 0xFE {
-                lead = byte
-            } else {
-                put(0xFFFD, &out)
-            }
+        return decodeDoubleByte(bytes, single: asciiOrLead) { first, byte, out in
+            guard byte >= 0x41, byte <= 0xFE else { return false }
+            let pointer = (first - 0x81) * 190 + Int(byte) - 0x41
+            guard pointer < index.count, index[pointer] != none else { return false }
+            put(index[pointer], &out)
+            return true
         }
-        if lead != 0 { put(0xFFFD, &out) }
-        return out
     }
 }
 

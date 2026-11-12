@@ -74,13 +74,6 @@ extension HTMLTreeBuilder {
         }
     }
 
-    static func isFormatting(_ name: HTMLName) -> Bool {
-        switch name {
-            case .a, .b, .big, .code, .em, .font, .i, .nobr, .s, .small, .strike, .strong, .tt, .u: true
-            default: false
-        }
-    }
-
     // MARK: The stack of open elements
 
     var currentNode: Node { stack.last ?? .none }
@@ -213,9 +206,6 @@ extension HTMLTreeBuilder {
         expectCurrent(.p)
         popUntilHTML(.p)
     }
-
-    /// Whether the current node is an HTML element named `name`: what "if the current node is not..." asks after the implied end tags.
-    mutating func currentIs(_ name: HTMLName) -> Bool { isHTML(currentNode, name) }
 
     /// Whether the stack has a `template` element.
     var hasTemplateOnStack: Bool {

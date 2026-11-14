@@ -23,7 +23,7 @@ let aemiDependency: Package.Dependency = .package(
 // AemiMarkdown reads the Markdown the extractors write, to check that it means what the page did. A test-only dependency: a package that depends on AemiHTML does not fetch it.
 let markdownDependency: Package.Dependency = .package(
     url: "https://github.com/g-cqd/AemiMarkdown.git",
-    revision: "20fad4620e371601ccfb1cb20454e5eee3e3efbb"
+    revision: "35b065d00413417a2e1274cb593f682032ae26ea"
 )
 
 // The benchmark framework is a dependency of the suite only, and the suite exists only for `AEMIHTML_DEV=1`: a package that depends on AemiHTML, and a plain `swift build` or `swift test`, never fetch it.

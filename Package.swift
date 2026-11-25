@@ -17,13 +17,13 @@ let kernelSettings: [SwiftSetting] = strictSettings + [.strictMemorySafety()]
 
 let aemiDependency: Package.Dependency = .package(
     url: "https://github.com/Aemi-Studio/aemi.git",
-    revision: "cbaeb200acaf7da2f74168b7b16dc6a4b0a02e6c"
+    revision: "bd5e4cf4441ca3ed1b424935142586ccaac0f835"
 )
 
 // AemiMarkdown reads the Markdown the extractors write, to check that it means what the page did. A test-only dependency: a package that depends on AemiHTML does not fetch it.
 let markdownDependency: Package.Dependency = .package(
     url: "https://github.com/g-cqd/AemiMarkdown.git",
-    revision: "3b9f6f782d20f4b821d2b6bb3479b6d57b8ac590"
+    revision: "125c7187a69ab474bcfe5c534e48628b14b65be8"
 )
 
 // The benchmark framework is a dependency of the suite only, and the suite exists only for `AEMIHTML_DEV=1`: a package that depends on AemiHTML, and a plain `swift build` or `swift test`, never fetch it.

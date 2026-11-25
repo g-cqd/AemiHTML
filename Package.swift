@@ -14,12 +14,12 @@ let kernelSettings: [SwiftSetting] = strictSettings + [.strictMemorySafety()]
 
 let aemiDependency: Package.Dependency = .package(
     url: "https://github.com/Aemi-Studio/aemi.git",
-    revision: "340c49040faa49313d5632003d8224d9d0084fb0"
+    revision: "32f1d61e0ee2fe19af99c1c1a040f1fbdae91d4a"
 )
 
 let markdownDependency: Package.Dependency = .package(
     url: "https://github.com/g-cqd/AemiMarkdown.git",
-    revision: "269d403d416e3fb5aff9bab9087907d8eb322866"
+    revision: "b32d5408b22bdce913a5363f75bfa41f60ae1286"
 )
 
 let isDev = Context.environment["AEMIHTML_DEV"] != nil

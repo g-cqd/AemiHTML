@@ -1,8 +1,6 @@
 // swift-tools-version: 6.4
 import PackageDescription
 
-// AemiHTML: an HTML tokenizer and a content tree on Aemi's kernels, promoted from the archived ADHTML (ask roadmap 0139, reopened 2026-11-05). Swift 6 language mode, warnings as errors, the
-// upcoming features that tighten existentials and imports, no unsafe flags: the same strictness as AemiMarkdown and AemiJSON.
 let strictSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v6),
     .treatAllWarnings(as: .error),
@@ -12,7 +10,6 @@ let strictSettings: [SwiftSetting] = [
     .enableUpcomingFeature("MemberImportVisibility")
 ]
 
-// The tokenizer reads attacker-controlled bytes (a fetched page), so every unsafe construct in it is marked `unsafe` and justified where it stands.
 let kernelSettings: [SwiftSetting] = strictSettings + [.strictMemorySafety()]
 
 let aemiDependency: Package.Dependency = .package(
@@ -20,13 +17,11 @@ let aemiDependency: Package.Dependency = .package(
     revision: "bd5e4cf4441ca3ed1b424935142586ccaac0f835"
 )
 
-// AemiMarkdown reads the Markdown the extractors write, to check that it means what the page did. A test-only dependency: a package that depends on AemiHTML does not fetch it.
 let markdownDependency: Package.Dependency = .package(
     url: "https://github.com/g-cqd/AemiMarkdown.git",
     revision: "125c7187a69ab474bcfe5c534e48628b14b65be8"
 )
 
-// The benchmark framework is a dependency of the suite only, and the suite exists only for `AEMIHTML_DEV=1`: a package that depends on AemiHTML, and a plain `swift build` or `swift test`, never fetch it.
 let isDev = Context.environment["AEMIHTML_DEV"] != nil
 
 var package = Package(
